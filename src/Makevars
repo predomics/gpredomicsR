@@ -1,0 +1,7 @@
+all:
+	@echo "Building Rust code via cargo..."
+	cargo build --release --lib
+	cp $(shell pwd)/../target/release/libgpredomicsR.dylib gpredomicsR.so
+
+clean:
+	cargo clean

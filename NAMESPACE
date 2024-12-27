@@ -1,0 +1,2 @@
+useDynLib(gpredomicsR, .registration = TRUE)
+exportPattern("^[[:alpha:]]+")

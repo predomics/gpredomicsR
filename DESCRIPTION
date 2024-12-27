@@ -1,0 +1,10 @@
+Package: gpredomicsR
+Version: 0.1.0
+Title: An R Interface to gpredomics
+Description: Provides Rust-based GA functionalities via extendr.
+Authors@R: c(
+    person("Raynald", "de Lahondès", email = "raynald.delahondes@gmt.bio", role = c("aut", "cre")),
+    person("Edi", "Prifti", email = "edi.prifti@gmail.com", role = "aut"))
+License: MIT
+LinkingTo: Rcpp
+Type: Package
