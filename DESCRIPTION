@@ -1,10 +1,12 @@
 Package: gpredomicsR
-Version: 0.1.0
-Title: An R Interface to gpredomics
-Description: Provides Rust-based GA functionalities via extendr.
-Authors@R: c(
-    person("Raynald", "de Lahondès", email = "raynald.delahondes@gmt.bio", role = c("aut", "cre")),
-    person("Edi", "Prifti", email = "edi.prifti@gmail.com", role = "aut"))
-License: MIT
-LinkingTo: Rcpp
-Type: Package
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Config/rextendr/version: 0.3.1
