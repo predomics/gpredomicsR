@@ -61,6 +61,8 @@ Param$get <- function(file_path) .Call(wrap__Param__get, file_path)
 
 Param$set_feature_minimal_prevalence_pct <- function(pct) invisible(.Call(wrap__Param__set_feature_minimal_prevalence_pct, self, pct))
 
+Param$set_log_level <- function(level) invisible(.Call(wrap__Param__set_log_level, self, level))
+
 #' @rdname Param
 #' @usage NULL
 #' @export
@@ -68,6 +70,23 @@ Param$set_feature_minimal_prevalence_pct <- function(pct) invisible(.Call(wrap__
 
 #' @export
 `[[.Param` <- `$.Param`
+
+#' @export
+GLogger <- new.env(parent = emptyenv())
+
+GLogger$new <- function() .Call(wrap__GLogger__new)
+
+GLogger$get <- function(param) .Call(wrap__GLogger__get, param)
+
+GLogger$set_level <- function(level) invisible(.Call(wrap__GLogger__set_level, self, level))
+
+#' @rdname GLogger
+#' @usage NULL
+#' @export
+`$.GLogger` <- function (self, name) { func <- GLogger[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.GLogger` <- `$.GLogger`
 
 
 # nolint end

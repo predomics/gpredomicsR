@@ -559,8 +559,11 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 name = "rgpredomicsR"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "extendr-api",
+ "flexi_logger",
  "gpredomics",
+ "log",
 ]
 
 [[package]]

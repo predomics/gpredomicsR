@@ -16,3 +16,10 @@ pop <- ga(param, running_flag)
 pop$generation_number()
 pop$get_individual(99,0)
 ```
+
+NB: you can additionally setup a GLogger object to add some display of info during ga() call
+```R
+glog <- GLogger$new()
+```
+NB2: the glog object can only be created once.
+NB3: once created the verbosity level can be adjusted with : `glog$set_level("warning")` for instance.

@@ -9,6 +9,9 @@ use gpredomics::population::Population  as GPopulation;
 use gpredomics::ga_run;
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use flexi_logger::{Logger, WriteMode, FileSpec};
+use chrono::Local;
+
 use extendr_api::prelude::*;
 
 /// A struct to manage the `running` flag.
@@ -102,6 +105,12 @@ impl Param {
         self.intern.data.feature_minimal_prevalence_pct = pct;
     }
 
+    /// Set the log level (possible value trace, debug, info, warning, error)
+    /// @export 
+    pub fn set_log_level(&mut self, level: String) {
+        self.intern.general.log_level = level;
+    }
+
 }
 
 /// A global Population object that proxies all the different Rust gpredomics objects under
@@ -155,6 +164,98 @@ impl Population {
     }
 }
 
+/// custom format for logs
+fn custom_format(
+    w: &mut dyn std::io::Write,
+    now: &mut flexi_logger::DeferredNow,
+    record: &log::Record,
+) -> std::io::Result<()> {
+    write!(
+        w,
+        "{} [{}] {}",
+        now.now().format("%Y-%m-%d %H:%M:%S"), // Format timestamp
+        record.level(),
+        record.args()
+    )
+}
+
+/// An object to handle Logger
+/// @export
+#[extendr]
+pub struct GLogger {
+    handle: flexi_logger::LoggerHandle
+}
+
+/// @export
+#[extendr]
+impl GLogger {
+    
+    /// Create a new screen logger
+    /// @export
+    pub fn new() -> Self {
+        println!("You can only set a logger once");
+        Self {
+            handle: Logger::try_with_str("info") // Set the log level (e.g., "info")
+                        .unwrap()
+                        .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
+                        .start() // Start the logger
+                        .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
+        }
+    }
+
+    /// Create a new logger from a Param
+    /// @export  
+    pub fn get(param: &Param) -> Self {
+        println!("You can only set a logger once");
+        let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+
+        // Initialize the logger
+        let handle = if param.intern.general.log_base.len()>0 {
+            Logger::try_with_str(&param.intern.general.log_level) // Set log level (e.g., "info")
+                .unwrap()
+                .log_to_file(
+                    FileSpec::default()
+                        .basename(&param.intern.general.log_base) // Logs go into the "logs" directory
+                        .suffix(&param.intern.general.log_suffix)     // Use the ".log" file extension
+                        .discriminant(&timestamp), // Add timestamp to each log file
+                )
+                .write_mode(WriteMode::BufferAndFlush) // Control file write buffering
+                .format_for_files(custom_format) // Custom format for the log file
+                .format_for_stderr(custom_format) // Same format for the console
+                .start()
+                .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
+        }
+        else {
+            Logger::try_with_str(&param.intern.general.log_level) // Set the log level (e.g., "info")
+                .unwrap()
+                .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
+                .start() // Start the logger
+                .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
+        };
+
+        Self {
+            handle: handle
+        }
+
+    }
+
+    /// Change logging level
+    /// @export
+    pub fn set_level(&mut self, level: String) {
+        log::set_max_level(
+            match &level as &str {
+                "trace" => log::LevelFilter::Trace,
+                "debug" => log::LevelFilter::Debug,
+                "info" => log::LevelFilter::Info,
+                "warning" => log::LevelFilter::Warn,
+                "error" => log::LevelFilter::Error,
+
+                other => panic!("No such level {}", other)
+            }
+        );
+    }
+}
+
 /// The simple genetic algorithm (ga) that produce a Population from a Param object
 /// the RunningFlag object is convenient when launching ga in a subthread, it must be
 /// provided (but you can let it live its own way)
@@ -180,6 +281,7 @@ extendr_module! {
     impl RunningFlag;
     impl Population;
     impl Param;
+    impl GLogger;
     fn ga;
 }
 
