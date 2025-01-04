@@ -23,3 +23,9 @@ glog <- GLogger$new()
 ```
 NB2: the glog object can only be created once.
 NB3: once created the verbosity level can be adjusted with : `glog$set_level("warning")` for instance.
+
+*NEW*
+
+- you may directly set a logger at a correct level `glog$level("trace")`
+- you may use `ga/ga2/ga_no_overfit/ga2_no_overfit` sub algorithms of the `ga` family
+- you may get all individuals at once in a a generation with `pop$get_all_individuals(98)` (which will give you a Dataframe of all the individuals) 
