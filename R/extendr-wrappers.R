@@ -40,9 +40,13 @@ Population <- new.env(parent = emptyenv())
 
 Population$get_individual <- function(generation, order) .Call(wrap__Population__get_individual, self, generation, order)
 
+Population$get_all_individuals <- function(generation) .Call(wrap__Population__get_all_individuals, self, generation)
+
 Population$generation_number <- function() .Call(wrap__Population__generation_number, self)
 
 Population$population_size <- function(generation) .Call(wrap__Population__population_size, self, generation)
+
+Population$get_individual_train_auc <- function(generation, order) .Call(wrap__Population__get_individual_train_auc, self, generation, order)
 
 #' @rdname Population
 #' @usage NULL
@@ -75,6 +79,8 @@ Param$set_log_level <- function(level) invisible(.Call(wrap__Param__set_log_leve
 GLogger <- new.env(parent = emptyenv())
 
 GLogger$new <- function() .Call(wrap__GLogger__new)
+
+GLogger$level <- function(level) .Call(wrap__GLogger__level, level)
 
 GLogger$get <- function(param) .Call(wrap__GLogger__get, param)
 

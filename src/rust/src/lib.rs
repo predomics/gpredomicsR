@@ -6,13 +6,12 @@ use gpredomics::data::Data as GData;
 use gpredomics::param::get as GParam_get;
 
 use gpredomics::population::Population  as GPopulation;
-use gpredomics::ga_run;
+use gpredomics::{ga_run, ga_no_overfit};
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use flexi_logger::{Logger, WriteMode, FileSpec};
+use flexi_logger::{Logger, WriteMode, FileSpec, LogSpecification, LevelFilter};
 use chrono::Local;
-
-use extendr_api::prelude::*;
+use std::collections::HashMap;
 
 /// A struct to manage the `running` flag.
 /// @export 
@@ -151,6 +150,51 @@ impl Population {
         robj
     }
 
+    /// list all individuals at generation #generation
+    /// @export
+    pub fn get_all_individuals(&self, generation: i32) -> Robj {
+        // Create a vector of columns, initializing each column with Vec<i8>
+        let mut columns: Vec<Vec<i8>> = vec![Vec::new(); self.train_data.feature_selection.len()];
+        let feature_map: HashMap<usize, usize> = self.train_data.feature_selection
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &feature)| (feature, index))
+                    .collect();
+        println!("features {:?}", self.train_data.feature_selection);
+        println!("feature map {:?}",feature_map);
+
+        // Iterate over the rows
+        for individual in self.generations[generation as usize].individuals.iter() {
+            // Initialize a vector for this row with default values (e.g., 0)
+            let mut current_row = vec![0; self.train_data.feature_selection.len()];
+            
+            
+            
+            println!("individual {:?}",individual.features);
+            // Fill in the row based on the HashMap
+            for (feature, &value) in &individual.features {
+                current_row[feature_map[feature]] = value;
+            }
+
+            // Append the row's values to their respective columns
+            for (i, val) in current_row.into_iter().enumerate() {
+                columns[i].push(val);
+            }
+        }
+
+        // Create a named list (similar to DataFrame in R)
+        let pairs: Vec<(&str, Robj)> = self.train_data.feature_selection
+            .iter()
+            .zip(columns.into_iter())
+            .map(|(feature_index, column)| (self.train_data.features[*feature_index].as_str(), column.into_robj()))
+            .collect();
+
+
+        // Create the List from pairs
+        List::from_pairs(pairs).into_robj()
+    }
+
+
     /// get the number of generation included in the Population object
     /// @export
     pub fn generation_number(&self) -> i32 {
@@ -162,6 +206,13 @@ impl Population {
     pub fn population_size(&self, generation: i32) -> i32 {
         self.generations[generation as usize].individuals.len() as i32
     }
+
+    /// get an individual auc
+    /// @export
+    pub fn get_individual_train_auc(&self, generation: i32, order:i32) -> f64 {
+        self.generations[generation as usize].individuals[order as usize].auc
+    }
+        
 }
 
 /// custom format for logs
@@ -196,6 +247,19 @@ impl GLogger {
         println!("You can only set a logger once");
         Self {
             handle: Logger::try_with_str("info") // Set the log level (e.g., "info")
+                        .unwrap()
+                        .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
+                        .start() // Start the logger
+                        .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
+        }
+    }
+
+    /// Create a new screen logger
+    /// @export
+    pub fn level(level: String) -> Self {
+        println!("You can only set a logger once");
+        Self {
+            handle: Logger::try_with_str(level) // Set the log level (e.g., "info")
                         .unwrap()
                         .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
                         .start() // Start the logger
@@ -242,17 +306,8 @@ impl GLogger {
     /// Change logging level
     /// @export
     pub fn set_level(&mut self, level: String) {
-        log::set_max_level(
-            match &level as &str {
-                "trace" => log::LevelFilter::Trace,
-                "debug" => log::LevelFilter::Debug,
-                "info" => log::LevelFilter::Info,
-                "warning" => log::LevelFilter::Warn,
-                "error" => log::LevelFilter::Error,
-
-                other => panic!("No such level {}", other)
-            }
-        );
+        let new_spec = LogSpecification::parse(level).unwrap();
+        self.handle.set_new_spec(new_spec);
     }
 }
 
@@ -262,7 +317,12 @@ impl GLogger {
 /// @export
 #[extendr]
 pub fn ga(param: &Param, running_flag: &RunningFlag) -> Population {
-    let (generations, train_data, test_data) = ga_run(&param.intern, running_flag.get_arc());
+    let algo = &param.intern.general.algo;
+    let (generations, train_data, test_data) = 
+        if (algo=="ga")||(algo=="ga2") { ga_run(&param.intern, running_flag.get_arc()) }
+        else  { if (algo=="ga_no_overfit")||(algo=="ga2_no_overfit") {
+                ga_no_overfit(&param.intern, running_flag.get_arc())
+              } else { panic!("No such algo {}",algo) } };
 
     Population {
         generations: generations,
