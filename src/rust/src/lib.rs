@@ -1,4 +1,3 @@
-
 use extendr_api::prelude::*;
 //use gpredomics::param::Param;
 use gpredomics::param::Param as GParam;
@@ -125,6 +124,48 @@ pub struct Population {
 /// @export
 #[extendr]
 impl Population {
+
+    /// Get a full individual
+    /// @export
+    pub fn get_individual_full(&self, generation: i32, order:i32) -> Robj {
+        
+        println!("debut");
+
+        let mut features: Vec<String> = Vec::new();
+        let mut value = Vec::new();
+        let individual = self.generations[generation as usize].individuals[order as usize].clone();
+        for (k, v) in individual.features.iter() {
+            features.push(self.train_data.features[*k].clone());      // R strings
+            value.push(*v as i32);     // R integers are 32-bit
+        }
+
+        println!("F {:?} V {:?}", features, value);
+        
+        // Create an integer vector from 'vals'
+        let value_robj: Robj = Robj::from(value);
+        let features_robj: Robj = Robj::from(features);
+        let k_robj: Robj = Robj::from(individual.k as i32);
+        let auc_robj: Robj = Robj::from(individual.auc);
+        let n_robj: Robj = Robj::from(individual.n as i32);
+        let fit_robj: Robj = Robj::from(self.generations[generation as usize].fit[order as usize]);
+        
+        println!("ici");
+
+
+        let individual = List::from_pairs(vec![
+            ("features", features_robj),
+            ("value", value_robj),
+            ("k", k_robj),
+            ("auc", auc_robj),
+            ("n", n_robj),
+            ("fit", fit_robj)
+        ]).into_robj();
+
+        println!("individual: {:?}",&individual);
+        individual
+
+    }
+
 
     /// list an individual at generation #generation, order #order with the number
     /// of generation available with generation_number and the number of individuals

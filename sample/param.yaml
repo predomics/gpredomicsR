@@ -1,6 +1,6 @@
 general:
   seed: 42
-  algo: "ga2"
+  algo: "ga" # ga2 pour des coeffs differents
   thread_number: 1
   log_level: debug
 

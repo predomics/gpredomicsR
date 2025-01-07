@@ -38,6 +38,8 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 #' @export
 Population <- new.env(parent = emptyenv())
 
+Population$get_individual_full <- function(generation, order) .Call(wrap__Population__get_individual_full, self, generation, order)
+
 Population$get_individual <- function(generation, order) .Call(wrap__Population__get_individual, self, generation, order)
 
 Population$get_all_individuals <- function(generation) .Call(wrap__Population__get_all_individuals, self, generation)
