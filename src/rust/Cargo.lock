@@ -61,9 +61,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "cc"
-version = "1.2.6"
+version = "1.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6dbb628b8f8555f86d0323c2eb39e3ec81901f4b83e091db8a6a76d316a333"
+checksum = "a012a0df96dd6d06ba9a1b29d6402d1a5d77c6befd2566afdc26e10603dc93d7"
 dependencies = [
  "shlex",
 ]
@@ -172,7 +172,7 @@ checksum = "81b58838056f294411d0b2c35ac1a2b24c507d6828b75f2c1e74f00ee9b99267"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.95",
 ]
 
 [[package]]
@@ -211,7 +211,7 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 [[package]]
 name = "gpredomics"
 version = "0.3.0"
-source = "git+https://github.com/predomics/gpredomics.git#9cf3d073d57aea54af3f62b57b51f3ad9e76c33d"
+source = "git+https://github.com/predomics/gpredomics.git#60684c55f92eb7d70b9f8fbff92725932a818102"
 dependencies = [
  "chrono",
  "csv",
@@ -598,14 +598,14 @@ checksum = "5a9bf7cf98d04a2b28aead066b7496853d4779c9cc183c440dbac457641e19a0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.95",
 ]
 
 [[package]]
 name = "serde_json"
-version = "1.0.134"
+version = "1.0.135"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d00f4175c42ee48b15416f6193a959ba3a0d67fc699a0db9ad12df9f83991c7d"
+checksum = "2b0d7ba2887406110130a978386c4e1befb98c674b4fba677954e4db976630d9"
 dependencies = [
  "itoa",
  "memchr",
@@ -690,9 +690,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.93"
+version = "2.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c786062daee0d6db1132800e623df74274a0a87322d8e183338e01b3d98d058"
+checksum = "46f71c0377baf4ef1cc3e3402ded576dccc315800fbc62dfc7fe04b009773b4a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -716,7 +716,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.95",
 ]
 
 [[package]]
@@ -764,7 +764,7 @@ dependencies = [
  "log",
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.95",
  "wasm-bindgen-shared",
 ]
 
@@ -786,7 +786,7 @@ checksum = "30d7a95b763d3c45903ed6c81f156801839e5ee968bb07e534c44df0fcd330c2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.95",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -799,9 +799,9 @@ checksum = "943aab3fdaaa029a6e0271b35ea10b72b943135afe9bffca82384098ad0e06a6"
 
 [[package]]
 name = "wide"
-version = "0.7.30"
+version = "0.7.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e6db2670d2be78525979e9a5f9c69d296fd7d670549fe9ebf70f8708cb5019"
+checksum = "cc0ca27312d1e9218687a4e804cd4b7410bf54125d54d13e5170efbf09066d24"
 dependencies = [
  "bytemuck",
  "safe_arch",
@@ -973,5 +973,5 @@ checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.95",
 ]

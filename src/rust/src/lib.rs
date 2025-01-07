@@ -86,7 +86,7 @@ impl Param {
 
     /// Load a param.yaml to file to create a new Param
     /// @export 
-    pub fn get(file_path: String) -> Self {
+    pub fn load(file_path: String) -> Self {
         if let Ok(this_param) = GParam_get(file_path.clone()) {
             Self {
                 intern: this_param
@@ -115,21 +115,20 @@ impl Param {
 /// the hood
 /// @export
 #[extendr]
-pub struct Population {
-    generations: Vec<GPopulation>,
+pub struct Experiment {
+    param: Param,
     train_data: GData,
-    test_data: GData
+    test_data: GData,
+    generations: Vec<GPopulation>
 }
 
 /// @export
 #[extendr]
-impl Population {
+impl Experiment {
 
     /// Get a full individual
     /// @export
     pub fn get_individual_full(&self, generation: i32, order:i32) -> Robj {
-        
-        println!("debut");
 
         let mut features: Vec<String> = Vec::new();
         let mut value = Vec::new();
@@ -138,8 +137,6 @@ impl Population {
             features.push(self.train_data.features[*k].clone());      // R strings
             value.push(*v as i32);     // R integers are 32-bit
         }
-
-        println!("F {:?} V {:?}", features, value);
         
         // Create an integer vector from 'vals'
         let value_robj: Robj = Robj::from(value);
@@ -357,7 +354,7 @@ impl GLogger {
 /// provided (but you can let it live its own way)
 /// @export
 #[extendr]
-pub fn ga(param: &Param, running_flag: &RunningFlag) -> Population {
+pub fn ga(param: &Param, running_flag: &RunningFlag) -> Experiment {
     let algo = &param.intern.general.algo;
     let (generations, train_data, test_data) = 
         if (algo=="ga")||(algo=="ga2") { ga_run(&param.intern, running_flag.get_arc()) }
@@ -365,10 +362,11 @@ pub fn ga(param: &Param, running_flag: &RunningFlag) -> Population {
                 ga_no_overfit(&param.intern, running_flag.get_arc())
               } else { panic!("No such algo {}",algo) } };
 
-    Population {
-        generations: generations,
+    Experiment {
+        param: (*param).clone(),
         train_data: train_data,
-        test_data: test_data
+        test_data: test_data,
+        generations: generations
     }
 }
 
@@ -380,7 +378,7 @@ pub fn ga(param: &Param, running_flag: &RunningFlag) -> Population {
 extendr_module! {
     mod gpredomicsR;
     impl RunningFlag;
-    impl Population;
+    impl Experiment;
     impl Param;
     impl GLogger;
     fn ga;
