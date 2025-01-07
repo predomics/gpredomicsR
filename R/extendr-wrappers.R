@@ -36,34 +36,34 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 `[[.RunningFlag` <- `$.RunningFlag`
 
 #' @export
-Population <- new.env(parent = emptyenv())
+Experiment <- new.env(parent = emptyenv())
 
-Population$get_individual_full <- function(generation, order) .Call(wrap__Population__get_individual_full, self, generation, order)
+Experiment$get_individual_full <- function(generation, order) .Call(wrap__Experiment__get_individual_full, self, generation, order)
 
-Population$get_individual <- function(generation, order) .Call(wrap__Population__get_individual, self, generation, order)
+Experiment$get_individual <- function(generation, order) .Call(wrap__Experiment__get_individual, self, generation, order)
 
-Population$get_all_individuals <- function(generation) .Call(wrap__Population__get_all_individuals, self, generation)
+Experiment$get_all_individuals <- function(generation) .Call(wrap__Experiment__get_all_individuals, self, generation)
 
-Population$generation_number <- function() .Call(wrap__Population__generation_number, self)
+Experiment$generation_number <- function() .Call(wrap__Experiment__generation_number, self)
 
-Population$population_size <- function(generation) .Call(wrap__Population__population_size, self, generation)
+Experiment$population_size <- function(generation) .Call(wrap__Experiment__population_size, self, generation)
 
-Population$get_individual_train_auc <- function(generation, order) .Call(wrap__Population__get_individual_train_auc, self, generation, order)
+Experiment$get_individual_train_auc <- function(generation, order) .Call(wrap__Experiment__get_individual_train_auc, self, generation, order)
 
-#' @rdname Population
+#' @rdname Experiment
 #' @usage NULL
 #' @export
-`$.Population` <- function (self, name) { func <- Population[[name]]; environment(func) <- environment(); func }
+`$.Experiment` <- function (self, name) { func <- Experiment[[name]]; environment(func) <- environment(); func }
 
 #' @export
-`[[.Population` <- `$.Population`
+`[[.Experiment` <- `$.Experiment`
 
 #' @export 
 Param <- new.env(parent = emptyenv())
 
 Param$new <- function() .Call(wrap__Param__new)
 
-Param$get <- function(file_path) .Call(wrap__Param__get, file_path)
+Param$load <- function(file_path) .Call(wrap__Param__load, file_path)
 
 Param$set_feature_minimal_prevalence_pct <- function(pct) invisible(.Call(wrap__Param__set_feature_minimal_prevalence_pct, self, pct))
 

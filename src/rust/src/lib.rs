@@ -69,6 +69,7 @@ impl RunningFlag {
 /// gpredomics param object that create all settings
 /// @export 
 #[extendr]
+#[derive(Clone)]
 pub struct Param {
     intern: GParam
 }
@@ -363,7 +364,7 @@ pub fn ga(param: &Param, running_flag: &RunningFlag) -> Experiment {
               } else { panic!("No such algo {}",algo) } };
 
     Experiment {
-        param: (*param).clone(),
+        param: param.clone(),
         train_data: train_data,
         test_data: test_data,
         generations: generations
