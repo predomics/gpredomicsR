@@ -98,6 +98,85 @@ impl Param {
         }
     } 
 
+/*
+    /// Returns an R object representing the current state of Param.
+    /// @export
+    pub fn get(&self) -> Robj {
+        // Convert General fields
+        let general = List::from_pairs(vec![
+            ("seed", Robj::from(self.general.seed)),
+            ("algo", Robj::from(self.general.algo.clone())),
+            ("thread_number", Robj::from(self.general.thread_number)),
+            ("log_base", Robj::from(self.general.log_base.clone())),
+            ("log_suffix", Robj::from(self.general.log_suffix.clone())),
+            ("log_level", Robj::from(self.general.log_level.clone())),
+        ]);
+
+        // Convert Data fields
+        let data = List::from_pairs(vec![
+            ("X", Robj::from(self.data.X.clone())),
+            ("y", Robj::from(self.data.y.clone())),
+            ("Xtest", Robj::from(self.data.Xtest.clone())),
+            ("ytest", Robj::from(self.data.ytest.clone())),
+            ("pvalue_method", Robj::from(self.data.pvalue_method.clone())),
+            ("feature_minimal_prevalence_pct", Robj::from(self.data.feature_minimal_prevalence_pct)),
+            ("feature_maximal_pvalue", Robj::from(self.data.feature_maximal_pvalue)),
+            ("feature_minimal_feature_value", Robj::from(self.data.feature_minimal_feature_value)),
+        ]);
+
+        // Convert GA fields
+        let ga = List::from_pairs(vec![
+            ("population_size", Robj::from(self.ga.population_size)),
+            ("max_epochs", Robj::from(self.ga.max_epochs)),
+            ("min_epochs", Robj::from(self.ga.min_epochs)),
+            ("max_age_best_model", Robj::from(self.ga.max_age_best_model)),
+            ("kmin", Robj::from(self.ga.kmin)),
+            ("kmax", Robj::from(self.ga.kmax)),
+            ("kpenalty", Robj::from(self.ga.kpenalty)),
+            ("select_elite_pct", Robj::from(self.ga.select_elite_pct)),
+            ("select_random_pct", Robj::from(self.ga.select_random_pct)),
+            ("mutated_children_pct", Robj::from(self.ga.mutated_children_pct)),
+            ("mutated_features_pct", Robj::from(self.ga.mutated_features_pct)),
+            ("mutation_non_null_chance_pct", Robj::from(self.ga.mutation_non_null_chance_pct)),
+            ("feature_importance_permutations", Robj::from(self.ga.feature_importance_permutations)),
+            ("keep_all_generations", Robj::from(self.ga.keep_all_generations)),
+        ]);
+
+        // Convert CV fields
+        let cv = List::from_pairs(vec![
+            ("fold_number", Robj::from(self.cv.fold_number)),
+            ("overfit_penalty", Robj::from(self.cv.overfit_penalty)),
+        ]);
+
+        // Combine all sections into a single R list object
+        let param_list = List::from_pairs(vec![
+            ("General", Robj::from(general)),
+            ("Data", Robj::from(data)),
+            ("GA", Robj::from(ga)),
+            ("CV", Robj::from(cv)),
+        ]);
+
+        Robj::from(param_list)
+    }   
+*/
+
+/*
+  pub fn to_robj(&self) -> Robj {
+        let general = List::from_pairs(vec![
+            ("seed", Robj::from(self.general.seed)),
+            ("algo", Robj::from(&self.general.algo)),
+            ("thread_number", Robj::from(self.general.thread_number)),
+            ("log_base", Robj::from(&self.general.log_base)),
+            ("log_suffix", Robj::from(&self.general.log_suffix)),
+            ("log_level", Robj::from(&self.general.log_level)),
+        ]);
+
+        // Continue with other fields like `data`, `ga`, `cv` similarly...
+        Robj::from(general)
+    }
+    
+*/
+
     /// Set the minimal prevalence of feature for feature selection
     /// @export 
     pub fn set_feature_minimal_prevalence_pct(&mut self, pct: f64) {
@@ -127,9 +206,24 @@ pub struct Experiment {
 #[extendr]
 impl Experiment {
 
-    /// Get a full individual
+    /// Retrieves a full description of an individual from a specified generation and order.
+    /// This function returns an R object that includes individual features and related statistics.
+    /// 
+    /// # Arguments
+    /// * `generation` - An i32 specifying the generation index.
+    /// * `order` - An i32 specifying the order index within the generation.
+    /// * `verbose` - A boolean flag that when true, prints the individual's details to the console.
+    /// 
+    /// # Returns
+    /// An R object (Robj) encapsulating the individual's features and metrics.
+    ///
+    /// # Example
+    /// ```
+    /// let robj_individual = model.get_individual_full(1, 2, true);
+    /// ```
+    ///
     /// @export
-    pub fn get_individual_full(&self, generation: i32, order:i32) -> Robj {
+    pub fn get_individual_full(&self, generation: i32, order:i32, verbose:bool) -> Robj {
 
         let mut features: Vec<String> = Vec::new();
         let mut value = Vec::new();
@@ -146,9 +240,6 @@ impl Experiment {
         let auc_robj: Robj = Robj::from(individual.auc);
         let n_robj: Robj = Robj::from(individual.n as i32);
         let fit_robj: Robj = Robj::from(self.generations[generation as usize].fit[order as usize]);
-        
-        println!("ici");
-
 
         let individual = List::from_pairs(vec![
             ("features", features_robj),
@@ -159,10 +250,45 @@ impl Experiment {
             ("fit", fit_robj)
         ]).into_robj();
 
-        println!("individual: {:?}",&individual);
+        if verbose {
+            println!("individual: {:?}",&individual);
+        }
         individual
 
     }
+
+    
+    /// Retrieves descriptions of all individuals from a specified generation.
+    /// This function returns an R list of objects, each including individual features and related statistics.
+    /// 
+    /// # Arguments
+    /// * `generation` - An i32 specifying the generation index.
+    /// * `verbose` - A boolean flag that when true, prints the details of all individuals to the console.
+    /// 
+    /// # Returns
+    /// An R list object (Robj) encapsulating the features and metrics of all individuals in the generation.
+    ///
+    /// # Example
+    /// ```
+    /// let robj_generation = model.get_generation(1, false);
+    /// ```
+    ///
+    /// @export
+    pub fn get_generation(&self, generation: i32) -> Robj {
+        let generation_index = generation as usize;
+        let individuals_count = self.generations[generation_index].individuals.len();
+        let mut individuals_list = Vec::new();
+
+        for order in 0..individuals_count {
+            let individual_robj = self.get_individual_full(generation, order as i32, false);
+            individuals_list.push(individual_robj);
+        }
+
+        let generation_robj = Robj::from(individuals_list);
+
+        generation_robj
+    }
+
 
 
     /// list an individual at generation #generation, order #order with the number

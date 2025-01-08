@@ -38,7 +38,9 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 #' @export
 Experiment <- new.env(parent = emptyenv())
 
-Experiment$get_individual_full <- function(generation, order) .Call(wrap__Experiment__get_individual_full, self, generation, order)
+Experiment$get_individual_full <- function(generation, order, verbose) .Call(wrap__Experiment__get_individual_full, self, generation, order, verbose)
+
+Experiment$get_generation <- function(generation) .Call(wrap__Experiment__get_generation, self, generation)
 
 Experiment$get_individual <- function(generation, order) .Call(wrap__Experiment__get_individual, self, generation, order)
 
