@@ -18,6 +18,8 @@ running_flag <- RunningFlag$new()
 
 setwd("sample")
 param <- Param$load("param.yaml")
+# Get the parameters in an r object
+rparam <- param$get()
 
 exp <- ga(param, running_flag)
 # exp$generation_number()

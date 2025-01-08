@@ -1,3 +1,7 @@
+///////////////////////////////////////////////////////////////
+/// Main dependencies
+///////////////////////////////////////////////////////////////
+
 use extendr_api::prelude::*;
 //use gpredomics::param::Param;
 use gpredomics::param::Param as GParam;
@@ -12,6 +16,9 @@ use flexi_logger::{Logger, WriteMode, FileSpec, LogSpecification, LevelFilter};
 use chrono::Local;
 use std::collections::HashMap;
 
+///////////////////////////////////////////////////////////////
+/// Running Flag
+///////////////////////////////////////////////////////////////
 /// A struct to manage the `running` flag.
 /// @export 
 #[derive(Debug, Clone)]
@@ -51,8 +58,6 @@ impl RunningFlag {
 
 }
 
-
-
 /*#[extendr]
 pub fn get_param() -> param::Param {
     param::Param::new()
@@ -65,6 +70,10 @@ impl RunningFlag {
     }
 }
 
+
+///////////////////////////////////////////////////////////////
+/// Param object
+///////////////////////////////////////////////////////////////
 
 /// gpredomics param object that create all settings
 /// @export 
@@ -98,84 +107,66 @@ impl Param {
         }
     } 
 
-/*
+
     /// Returns an R object representing the current state of Param.
     /// @export
     pub fn get(&self) -> Robj {
         // Convert General fields
         let general = List::from_pairs(vec![
-            ("seed", Robj::from(self.general.seed)),
-            ("algo", Robj::from(self.general.algo.clone())),
-            ("thread_number", Robj::from(self.general.thread_number)),
-            ("log_base", Robj::from(self.general.log_base.clone())),
-            ("log_suffix", Robj::from(self.general.log_suffix.clone())),
-            ("log_level", Robj::from(self.general.log_level.clone())),
+            ("seed", Robj::from(self.intern.general.seed)),
+            ("algo", Robj::from(self.intern.general.algo.clone())),
+            ("thread_number", Robj::from(self.intern.general.thread_number)),
+            ("log_base", Robj::from(self.intern.general.log_base.clone())),
+            ("log_suffix", Robj::from(self.intern.general.log_suffix.clone())),
+            ("log_level", Robj::from(self.intern.general.log_level.clone())),
         ]);
 
         // Convert Data fields
         let data = List::from_pairs(vec![
-            ("X", Robj::from(self.data.X.clone())),
-            ("y", Robj::from(self.data.y.clone())),
-            ("Xtest", Robj::from(self.data.Xtest.clone())),
-            ("ytest", Robj::from(self.data.ytest.clone())),
-            ("pvalue_method", Robj::from(self.data.pvalue_method.clone())),
-            ("feature_minimal_prevalence_pct", Robj::from(self.data.feature_minimal_prevalence_pct)),
-            ("feature_maximal_pvalue", Robj::from(self.data.feature_maximal_pvalue)),
-            ("feature_minimal_feature_value", Robj::from(self.data.feature_minimal_feature_value)),
+            ("X", Robj::from(self.intern.data.X.clone())),
+            ("y", Robj::from(self.intern.data.y.clone())),
+            ("Xtest", Robj::from(self.intern.data.Xtest.clone())),
+            ("ytest", Robj::from(self.intern.data.ytest.clone())),
+            ("pvalue_method", Robj::from(self.intern.data.pvalue_method.clone())),
+            ("feature_minimal_prevalence_pct", Robj::from(self.intern.data.feature_minimal_prevalence_pct)),
+            ("feature_maximal_pvalue", Robj::from(self.intern.data.feature_maximal_pvalue)),
+            ("feature_minimal_feature_value", Robj::from(self.intern.data.feature_minimal_feature_value)),
         ]);
 
         // Convert GA fields
         let ga = List::from_pairs(vec![
-            ("population_size", Robj::from(self.ga.population_size)),
-            ("max_epochs", Robj::from(self.ga.max_epochs)),
-            ("min_epochs", Robj::from(self.ga.min_epochs)),
-            ("max_age_best_model", Robj::from(self.ga.max_age_best_model)),
-            ("kmin", Robj::from(self.ga.kmin)),
-            ("kmax", Robj::from(self.ga.kmax)),
-            ("kpenalty", Robj::from(self.ga.kpenalty)),
-            ("select_elite_pct", Robj::from(self.ga.select_elite_pct)),
-            ("select_random_pct", Robj::from(self.ga.select_random_pct)),
-            ("mutated_children_pct", Robj::from(self.ga.mutated_children_pct)),
-            ("mutated_features_pct", Robj::from(self.ga.mutated_features_pct)),
-            ("mutation_non_null_chance_pct", Robj::from(self.ga.mutation_non_null_chance_pct)),
-            ("feature_importance_permutations", Robj::from(self.ga.feature_importance_permutations)),
-            ("keep_all_generations", Robj::from(self.ga.keep_all_generations)),
+            ("population_size", Robj::from(self.intern.ga.population_size)),
+            ("max_epochs", Robj::from(self.intern.ga.max_epochs)),
+            ("min_epochs", Robj::from(self.intern.ga.min_epochs)),
+            ("max_age_best_model", Robj::from(self.intern.ga.max_age_best_model)),
+            ("kmin", Robj::from(self.intern.ga.kmin)),
+            ("kmax", Robj::from(self.intern.ga.kmax)),
+            ("kpenalty", Robj::from(self.intern.ga.kpenalty)),
+            ("select_elite_pct", Robj::from(self.intern.ga.select_elite_pct)),
+            ("select_random_pct", Robj::from(self.intern.ga.select_random_pct)),
+            ("mutated_children_pct", Robj::from(self.intern.ga.mutated_children_pct)),
+            ("mutated_features_pct", Robj::from(self.intern.ga.mutated_features_pct)),
+            ("mutation_non_null_chance_pct", Robj::from(self.intern.ga.mutation_non_null_chance_pct)),
+            ("feature_importance_permutations", Robj::from(self.intern.ga.feature_importance_permutations)),
+            ("keep_all_generations", Robj::from(self.intern.ga.keep_all_generations)),
         ]);
 
         // Convert CV fields
         let cv = List::from_pairs(vec![
-            ("fold_number", Robj::from(self.cv.fold_number)),
-            ("overfit_penalty", Robj::from(self.cv.overfit_penalty)),
+            ("fold_number", Robj::from(self.intern.cv.fold_number)),
+            ("overfit_penalty", Robj::from(self.intern.cv.overfit_penalty)),
         ]);
 
         // Combine all sections into a single R list object
         let param_list = List::from_pairs(vec![
-            ("General", Robj::from(general)),
-            ("Data", Robj::from(data)),
-            ("GA", Robj::from(ga)),
-            ("CV", Robj::from(cv)),
+            ("general", Robj::from(general)),
+            ("data", Robj::from(data)),
+            ("ga", Robj::from(ga)),
+            ("cv", Robj::from(cv)),
         ]);
 
         Robj::from(param_list)
     }   
-*/
-
-/*
-  pub fn to_robj(&self) -> Robj {
-        let general = List::from_pairs(vec![
-            ("seed", Robj::from(self.general.seed)),
-            ("algo", Robj::from(&self.general.algo)),
-            ("thread_number", Robj::from(self.general.thread_number)),
-            ("log_base", Robj::from(&self.general.log_base)),
-            ("log_suffix", Robj::from(&self.general.log_suffix)),
-            ("log_level", Robj::from(&self.general.log_level)),
-        ]);
-
-        // Continue with other fields like `data`, `ga`, `cv` similarly...
-        Robj::from(general)
-    }
-    
-*/
 
     /// Set the minimal prevalence of feature for feature selection
     /// @export 
@@ -191,7 +182,11 @@ impl Param {
 
 }
 
-/// A global Population object that proxies all the different Rust gpredomics objects under
+///////////////////////////////////////////////////////////////
+/// Experiment object
+///////////////////////////////////////////////////////////////
+
+/// A global Experiment object that proxies all the different Rust gpredomics objects under
 /// the hood
 /// @export
 #[extendr]
@@ -395,6 +390,57 @@ fn custom_format(
     )
 }
 
+
+///////////////////////////////////////////////////////////////
+/// Data object
+///////////////////////////////////////////////////////////////
+
+/*
+/// gpredomics Data object 
+/// @export 
+#[extendr]
+#[derive(Clone)]
+pub struct Data {
+    intern: GData
+}
+
+/// @export 
+#[extendr]
+impl Data {
+    /// Create a new empty Data object
+    /// @export 
+    pub fn new() -> Self {
+        Self {
+            intern: GData::new()
+        }
+    }
+
+    /// Converts the Data struct fields to an R object.
+    /// @export
+    pub fn get_data(&self) -> Robj {
+        // Convert Data fields to R objects
+        let data = List::from_pairs(vec![
+            ("X", Robj::from(&self.intern.X)),
+            ("y", Robj::from(&self.intern.y)),
+            ("Xtest", Robj::from(&self.intern.Xtest)),
+            ("ytest", Robj::from(&self.intern.ytest)),
+            ("pvalue_method", Robj::from(&self.intern.pvalue_method)),
+            ("feature_minimal_prevalence_pct", Robj::from(self.intern.feature_minimal_prevalence_pct)),
+            ("feature_maximal_pvalue", Robj::from(self.intern.feature_maximal_pvalue)),
+            ("feature_minimal_feature_value", Robj::from(self.intern.feature_minimal_feature_value)),
+        ]);
+
+        // Return the data as an R list object
+        Robj::from(data)
+    }
+
+}
+ */
+
+///////////////////////////////////////////////////////////////
+/// Glogger object
+///////////////////////////////////////////////////////////////
+
 /// An object to handle Logger
 /// @export
 #[extendr]
@@ -476,7 +522,7 @@ impl GLogger {
     }
 }
 
-/// The simple genetic algorithm (ga) that produce a Population from a Param object
+/// The simple genetic algorithm (ga) produce a Population from a Param object
 /// the RunningFlag object is convenient when launching ga in a subthread, it must be
 /// provided (but you can let it live its own way)
 /// @export
@@ -497,9 +543,6 @@ pub fn ga(param: &Param, running_flag: &RunningFlag) -> Experiment {
     }
 }
 
-//fn get_pop() -> Population {
-//    Population::new()
-//}
 
 // Macro to expose the struct and methods to R
 extendr_module! {

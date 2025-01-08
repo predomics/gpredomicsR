@@ -2,14 +2,14 @@
 % Please edit documentation in R/extendr-wrappers.R
 \name{ga}
 \alias{ga}
-\title{The simple genetic algorithm (ga) that produce a Population from a Param object
+\title{The simple genetic algorithm (ga) produce a Population from a Param object
 the RunningFlag object is convenient when launching ga in a subthread, it must be
 provided (but you can let it live its own way)}
 \usage{
 ga(param, running_flag)
 }
 \description{
-The simple genetic algorithm (ga) that produce a Population from a Param object
+The simple genetic algorithm (ga) produce a Population from a Param object
 the RunningFlag object is convenient when launching ga in a subthread, it must be
 provided (but you can let it live its own way)
 }

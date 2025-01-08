@@ -10,7 +10,7 @@
 #' @useDynLib gpredomicsR, .registration = TRUE
 NULL
 
-#' The simple genetic algorithm (ga) that produce a Population from a Param object
+#' The simple genetic algorithm (ga) produce a Population from a Param object
 #' the RunningFlag object is convenient when launching ga in a subthread, it must be
 #' provided (but you can let it live its own way)
 #' @export
@@ -66,6 +66,8 @@ Param <- new.env(parent = emptyenv())
 Param$new <- function() .Call(wrap__Param__new)
 
 Param$load <- function(file_path) .Call(wrap__Param__load, file_path)
+
+Param$get <- function() .Call(wrap__Param__get, self)
 
 Param$set_feature_minimal_prevalence_pct <- function(pct) invisible(.Call(wrap__Param__set_feature_minimal_prevalence_pct, self, pct))
 
