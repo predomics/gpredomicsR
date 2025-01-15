@@ -67,9 +67,9 @@ Param$load <- function(file_path) .Call(wrap__Param__load, file_path)
 
 Param$get <- function() .Call(wrap__Param__get, self)
 
-Param$set_feature_minimal_prevalence_pct <- function(pct) invisible(.Call(wrap__Param__set_feature_minimal_prevalence_pct, self, pct))
+Param$set <- function(variable, value) invisible(.Call(wrap__Param__set, self, variable, value))
 
-Param$set_log_level <- function(level) invisible(.Call(wrap__Param__set_log_level, self, level))
+Param$set_string <- function(variable, string) invisible(.Call(wrap__Param__set_string, self, variable, string))
 
 #' @rdname Param
 #' @usage NULL

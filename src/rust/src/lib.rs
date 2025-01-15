@@ -176,19 +176,36 @@ impl Param {
         Robj::from(param_list)
     }   
 
-    // TODO @raynald mettre une fonction de setter with switch
-
-
-    /// Set the minimal prevalence of feature for feature selection
     /// @export 
-    pub fn set_feature_minimal_prevalence_pct(&mut self, pct: f64) {
-        self.intern.data.feature_minimal_prevalence_pct = pct;
+    pub fn set(&mut self, variable: &str, value: f64) {
+        match variable {
+            "feature_minimal_prevalence_pct" => self.intern.data.feature_minimal_prevalence_pct = value,
+            "seed" => self.intern.general.seed = value as u64,
+            "data_type_epsilon" => self.intern.general.data_type_epsilon = value,
+            "thread_number" => self.intern.general.thread_number = value as usize,
+            "k_penalty" => self.intern.general.k_penalty = value,
+            // TODO @raynald continue here
+            "X"|"y"|"Xtest"|"ytest"|"pvalue_method"|"algo"|"language"|"data_type" => panic!("Use param$set_string() for {}",variable),
+            "keep_all_generations" => panic!("Use dedicated method param$set_keep_all_generation()"),
+            "log_level"|"log_base"|"log_suffix" => panic!("Cannot set logs this way, create or get back your GLogger object"),
+            _ => panic!("Unknown variable: {} ", variable)
+        }
     }
 
-    /// Set the log level (possible value trace, debug, info, warning, error)
-    /// @export 
-    pub fn set_log_level(&mut self, level: String) {
-        self.intern.general.log_level = level;
+
+    pub fn set_string(&mut self, variable: &str, string: String) {
+        match variable {
+            "X" => self.intern.data.X = string,
+            "y" => self.intern.data.y = string,
+            "Xtest" => self.intern.data.Xtest = string,
+            "ytest" => self.intern.data.ytest = string,
+            "pvalue_method" => self.intern.data.pvalue_method = string,
+            "algo" => self.intern.general.algo = string,
+            "language" => self.intern.general.language = string,
+            "data_type" => self.intern.general.data_type = string,
+            "log_level"|"log_base"|"log_suffix" => panic!("Cannot set logs this way, create or get back your GLogger object"),
+            _ => panic!("Variable unknown or not settable byt set_string: {} ", variable)
+        }
     }
 
 }
@@ -198,33 +215,78 @@ impl Param {
 /// Data object
 ///////////////////////////////////////////////////////////////
 
-/// Convert a sparse matrix to a data frame
-/// @export
-fn sparse_matrix_to_dataframe(matrix: &HashMap<(usize, usize), f64>) -> Robj {
-    // Collect row indices, column indices, and values
-    let mut rows: Vec<i32> = Vec::new();
-    let mut cols: Vec<i32> = Vec::new();
-    let mut values: Vec<f64> = Vec::new();
+/// Convert a sparse matrix into an R data frame.
+/// 
+/// - `matrix`: HashMap<(row_index, col_index), value> 
+/// - `column_names`: names for each column (length = number of columns)
+/// - `row_names`: names for each row (length = number of rows)
+/// 
+/// Any missing (row, col) in `matrix` is treated as 0.0 in the data frame.
+///
+/// Example usage from R side (after wrapping with `.Call`):
+/// ```r
+/// df <- .Call("my_module_sparse_matrix_to_dataframe", sparse_mat, col_names, row_names)
+/// print(df)
+/// ```
 
-    for ((row, col), value) in matrix {
-        rows.push(*row as i32 + 1); // R uses 1-based indexing
-        cols.push(*col as i32 + 1); // Convert usize to i32 and adjust for R indexing
-        values.push(*value);
+/* fn sparse_matrix_to_dataframe(
+    matrix: &HashMap<(usize, usize), f64>,
+    column_names: &Vec<String>,
+    row_names: &Vec<String>,
+) -> Robj {
+    // Number of rows/columns as implied by the provided names.
+    let nrows = row_names.len();
+    let ncols = column_names.len();
+
+    // For each column, build a Vec<f64> of length = nrows.
+    // If (row, col) is missing in `matrix`, we use 0.0.
+    let mut columns = Vec::with_capacity(ncols);
+
+    for col_idx in 0..ncols {
+        let mut col_vals = Vec::with_capacity(nrows);
+        for row_idx in 0..nrows {
+            let val = *matrix.get(&(row_idx, col_idx)).unwrap_or(&0.0);
+            col_vals.push(val);
+        }
+        // Convert the Rust Vec<f64> to an R numeric vector (Robj).
+        columns.push((column_names[col_idx].as_str(), Robj::from(col_vals)));
     }
 
-    // Create an R list representing a data frame
-    let mut data_frame = list![
-        rows = rows,
-        cols = cols,
-        values = values
-    ].into_robj(); // Convert List to Robj
+    // Build an R data frame from these columns.
+    // `DataFrame::create(&[("colname", coldata), ...])`
+    let df = Dataframe::try_with_str(&columns).expect("Failed to create data frame");
 
-    // Set the class of the R object to "data.frame"
-    data_frame
-        .set_class(&["data.frame"])
-        .expect("Failed to set class to data.frame");
+    // Optionally set row names for the data frame.
+    // `Strings::from_values` converts a Vec<String> to an R string vector.
+    // Then `.set_rownames(...)` sets the row names attribute in R.
+    let row_names_robj = Strings::from_values(row_names);
+    df.set_rownames(row_names_robj).ok();
 
-    data_frame
+    // Return the data frame as an Robj
+    df.into()
+} */
+
+fn sparse_matrix_to_dataframe(
+    matrix: &HashMap<(usize, usize), f64>,
+    column_names: &Vec<String>,
+    row_names: &Vec<String>,
+) -> Robj {
+
+    let mut columns: Vec<Vec<f64>> = vec![ vec![0.0; row_names.len()]; column_names.len() ];
+
+    for ((col,row), value) in matrix {
+        columns[*col][*row] = *value;
+    }
+
+    let mut df_list = List::from_values(columns.iter().map(|c| {c.into_robj()}));
+    let _ = df_list.set_names(column_names);
+
+    df_list.set_attrib(row_names_symbol(), Robj::from(row_names)).ok();
+
+    df_list.set_class(&["data.frame"]).ok();
+
+    df_list.into()
+
 }
 
 
@@ -268,7 +330,7 @@ impl Data {
     pub fn get(&self) -> Robj {
         // Convert Data fields to R objects
         let data = List::from_pairs(vec![
-            ("X", sparse_matrix_to_dataframe(&self.intern.X)),
+            ("X", sparse_matrix_to_dataframe(&self.intern.X, &self.intern.samples, &self.intern.features)),
             ("y", Robj::from(&self.intern.y)),
             ("features", Robj::from(&self.intern.features)),
             ("samples", Robj::from(&self.intern.samples)),
