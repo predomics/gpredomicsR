@@ -10,9 +10,9 @@ name = 'rgpredomicsR'
 [dependencies]
 extendr-api = '*'
 #gpredomics = { git = "https://github.com/predomics/gpredomics.git", tag="v0.3.0" }
-gpredomics = { git = "https://github.com/predomics/gpredomics.git"}
+#gpredomics = { git = "https://github.com/predomics/gpredomics.git"}
 flexi_logger = "0.27"
 chrono = "0.4"
 log = "0.4"
 #gpredomics = { path = "../../../gpredomicsh" }
-#gpredomics = { path = "../../../gpredomics" }
+gpredomics = { path = "../../../gpredomics" }

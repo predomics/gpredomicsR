@@ -38,19 +38,17 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 #' @export
 Experiment <- new.env(parent = emptyenv())
 
-Experiment$get_individual_full <- function(generation, order, verbose) .Call(wrap__Experiment__get_individual_full, self, generation, order, verbose)
-
-Experiment$get_generation <- function(generation) .Call(wrap__Experiment__get_generation, self, generation)
-
 Experiment$get_individual <- function(generation, order) .Call(wrap__Experiment__get_individual, self, generation, order)
 
-Experiment$get_all_individuals <- function(generation) .Call(wrap__Experiment__get_all_individuals, self, generation)
+Experiment$get_data_robj <- function(train) .Call(wrap__Experiment__get_data_robj, self, train)
+
+Experiment$get_data <- function(train) .Call(wrap__Experiment__get_data, self, train)
+
+Experiment$get_generation <- function(generation) .Call(wrap__Experiment__get_generation, self, generation)
 
 Experiment$generation_number <- function() .Call(wrap__Experiment__generation_number, self)
 
 Experiment$population_size <- function(generation) .Call(wrap__Experiment__population_size, self, generation)
-
-Experiment$get_individual_train_auc <- function(generation, order) .Call(wrap__Experiment__get_individual_train_auc, self, generation, order)
 
 #' @rdname Experiment
 #' @usage NULL

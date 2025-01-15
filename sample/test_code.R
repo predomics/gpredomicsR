@@ -39,12 +39,13 @@ pop <- exp$get_generation(99)
 #---------------------------------------------
 # Analyze the experiment
 #---------------------------------------------
-perf.df <- analyzeEvolution(exp, attributes = c("auc", "fit", "k", "n"), plot = FALSE)
-analyzeEvolution(exp, attributes = c("auc", "fit", "k", "n"), plot = TRUE)
-analyzeEvolutionAllModels(exp, attributes = c("auc", "fit", "k", "n"), plot = TRUE)
+perf.df <- analyzeEvolution(exp, attributes = c("auc", "fit", "k", "epoch","specificity","sensitivity","accuracy"), plot = FALSE)
+analyzeEvolution(exp, attributes = c("auc", "fit", "k", "epoch","specificity","sensitivity","accuracy"), plot = TRUE)
+analyzeEvolutionAllModels(exp, attributes = c("auc", "fit", "k", "epoch","specificity","sensitivity","accuracy"), plot = TRUE)
   
 
 
+data = exp$get()
 
 
 pop.final <- pop$get_all_individuals(99)
