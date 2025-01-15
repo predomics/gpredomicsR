@@ -229,43 +229,6 @@ impl Param {
 /// print(df)
 /// ```
 
-/* fn sparse_matrix_to_dataframe(
-    matrix: &HashMap<(usize, usize), f64>,
-    column_names: &Vec<String>,
-    row_names: &Vec<String>,
-) -> Robj {
-    // Number of rows/columns as implied by the provided names.
-    let nrows = row_names.len();
-    let ncols = column_names.len();
-
-    // For each column, build a Vec<f64> of length = nrows.
-    // If (row, col) is missing in `matrix`, we use 0.0.
-    let mut columns = Vec::with_capacity(ncols);
-
-    for col_idx in 0..ncols {
-        let mut col_vals = Vec::with_capacity(nrows);
-        for row_idx in 0..nrows {
-            let val = *matrix.get(&(row_idx, col_idx)).unwrap_or(&0.0);
-            col_vals.push(val);
-        }
-        // Convert the Rust Vec<f64> to an R numeric vector (Robj).
-        columns.push((column_names[col_idx].as_str(), Robj::from(col_vals)));
-    }
-
-    // Build an R data frame from these columns.
-    // `DataFrame::create(&[("colname", coldata), ...])`
-    let df = Dataframe::try_with_str(&columns).expect("Failed to create data frame");
-
-    // Optionally set row names for the data frame.
-    // `Strings::from_values` converts a Vec<String> to an R string vector.
-    // Then `.set_rownames(...)` sets the row names attribute in R.
-    let row_names_robj = Strings::from_values(row_names);
-    df.set_rownames(row_names_robj).ok();
-
-    // Return the data frame as an Robj
-    df.into()
-} */
-
 fn sparse_matrix_to_dataframe(
     matrix: &HashMap<(usize, usize), f64>,
     column_names: &Vec<String>,
@@ -349,14 +312,18 @@ impl Data {
 
 }
 
+
 ///////////////////////////////////////////////////////////////
 /// Individual object
-////////////////////////////////////////////////////////////////// A global Experiment object that proxies all the different Rust gpredomics objects under
-/// the hood
+///////////////////////////////////////////////////////////////
+
+/// gpredomicsR proxy object for Individual
 /// @export
+#[derive(Debug, Clone)]
 #[extendr]
 pub struct Individual {
-    intern: GIndividual
+    intern: GIndividual,
+    features: Vec<String>
 }
 
 /// @export
@@ -367,7 +334,8 @@ impl Individual {
     /// @export
     pub fn new() -> Self {
         Self {
-            intern: GIndividual::new()
+            intern: GIndividual::new(),
+            features: Vec::new()
         }
     }
 
@@ -384,7 +352,6 @@ impl Individual {
     /// @export
     pub fn get(&self) -> Robj {
 
-        let features: Vec<String> = Vec::new();
         let mut coeff = Vec::new();
         let mut indexes = Vec::new();
         for (index, coefficient) in self.intern.features.iter() {
@@ -395,7 +362,7 @@ impl Individual {
         // Create an integer vector from 'vals'
 
         let individual_robj = List::from_pairs(vec![
-            ("features", Robj::from(features)),
+            ("features", Robj::from(self.features.clone())),
             ("coeff", Robj::from(coeff)),
             ("indexes", Robj::from(indexes)),
             ("k", Robj::from(self.intern.k as i32)),
@@ -406,16 +373,35 @@ impl Individual {
             ("sensitivity", Robj::from(self.intern.sensitivity)),
             ("accuracy", Robj::from(self.intern.accuracy)),
             ("threshold", Robj::from(self.intern.threshold)),
-            ("language", Robj::from(self.intern.language)),
-            ("data_type", Robj::from(self.intern.data_type)),
-            ("hash", Robj::from(self.intern.hash))
+            ("language", Robj::from(self.intern.get_language())),
+            ("data_type", Robj::from(self.intern.get_data_type())),
+            ("hash", Robj::from(self.intern.hash.to_string()))
         ]).into_robj();
 
         individual_robj
 
     }
 
-    
+    /// Compute auc for this individual
+    /// @export
+    pub fn compute_auc(&mut self, data: &Data, min_value: f64) {
+        self.intern.compute_auc(&data.intern, min_value);
+    }    
+
+    /// Compute threshold/accuracy/sensitivity/specificity for this individual
+    /// @export
+    pub fn compute_metrics(&mut self, data: &Data, min_value: f64) {
+        let i = &mut self.intern;
+
+        (i.threshold, i.accuracy, i.sensitivity, i.specificity) = 
+                    i.compute_threshold_and_metrics(&data.intern, min_value);
+    }
+
+    /// Compute algorithm score
+    /// @export
+    pub fn evaluate(&self, data: &Data, min_value: f64) -> Robj {
+        self.intern.evaluate(&data.intern, min_value).into_robj()
+    }
 
     /// Print the individual
     /// @export
@@ -425,51 +411,6 @@ impl Individual {
     
 }
 
-impl Individual {
-    /// Retrieves a full description of an individual.
-    /// This function returns an R object that includes individual features and related statistics.
-    /// # Returns
-    /// An R object (Robj) encapsulating the individual's features and metrics.
-    ///
-    /// # Example
-    /// ```
-    /// let robj_individual = model.get_individual_full(1, 2, true);
-    /// ```
-    ///
-    pub fn get_with_features(&self, data:&GData) -> Robj {
-
-        let mut features: Vec<String> = Vec::new();
-        let mut coeff = Vec::new();
-        let mut indexes = Vec::new();
-        for (index, coefficient) in self.intern.features.iter() {
-            features.push(data.features[*index].clone());      // R strings
-            coeff.push(*coefficient as i32);     // R integers are 32-bit
-            indexes.push(*index as i32);
-        }
-        
-        // Create an integer vector from 'vals'
-
-        let individual_robj = List::from_pairs(vec![
-            ("features", Robj::from(features)),
-            ("coeff", Robj::from(coeff)),
-            ("indexes", Robj::from(indexes)),
-            ("k", Robj::from(self.intern.k as i32)),
-            ("auc", Robj::from(self.intern.auc)),
-            ("epoch", Robj::from(self.intern.epoch as i32)),
-            ("fit", Robj::from(self.intern.fit)),
-            ("specificity", Robj::from(self.intern.specificity)),
-            ("sensitivity", Robj::from(self.intern.sensitivity)),
-            ("accuracy", Robj::from(self.intern.accuracy)),
-            ("threshold", Robj::from(self.intern.threshold)),
-            ("language", Robj::from(self.intern.language)),
-            ("data_type", Robj::from(self.intern.data_type)),
-            ("hash", Robj::from(self.intern.hash))
-        ]).into_robj();
-
-        individual_robj
-
-    }
-}
 
 
 ///////////////////////////////////////////////////////////////
@@ -507,9 +448,22 @@ impl Experiment {
     /// ```
     ///
     /// @export
-    pub fn get_individual(&self, generation: i32, order:i32) -> Robj {
-        let individual = Individual {intern:self.generations[generation as usize].individuals[order as usize].clone()};
-        individual.get_with_features(&self.train_data.intern)
+    pub fn individual(&self, generation: i32, order:i32) -> Individual {
+        Individual {
+            intern:self.generations[generation as usize].individuals[order as usize].clone(),
+            features:self.train_data.intern.features.clone()
+        }
+
+    }
+
+    /// @export
+    pub fn test_data(&self) -> Data {
+        self.test_data.clone()
+    }
+
+    /// @export
+    pub fn train_data(&self) -> Data {
+        self.train_data.clone()
     }
 
     /// @export
@@ -546,7 +500,7 @@ impl Experiment {
         let mut individuals_list = Vec::new();
 
         for order in 0..individuals_count {
-            let individual_robj = self.get_individual(generation, order as i32);
+            let individual_robj = self.individual(generation, order as i32).get();
             individuals_list.push(individual_robj);
         }
 
@@ -745,6 +699,7 @@ extendr_module! {
     impl Experiment;
     impl Param;
     impl GLogger;
+    impl Individual;
     fn ga;
 }
 

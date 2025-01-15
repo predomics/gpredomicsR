@@ -38,7 +38,11 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 #' @export
 Experiment <- new.env(parent = emptyenv())
 
-Experiment$get_individual <- function(generation, order) .Call(wrap__Experiment__get_individual, self, generation, order)
+Experiment$individual <- function(generation, order) .Call(wrap__Experiment__individual, self, generation, order)
+
+Experiment$test_data <- function() .Call(wrap__Experiment__test_data, self)
+
+Experiment$train_data <- function() .Call(wrap__Experiment__train_data, self)
 
 Experiment$get_data_robj <- function(train) .Call(wrap__Experiment__get_data_robj, self, train)
 
@@ -97,6 +101,29 @@ GLogger$set_level <- function(level) invisible(.Call(wrap__GLogger__set_level, s
 
 #' @export
 `[[.GLogger` <- `$.GLogger`
+
+#' @export
+Individual <- new.env(parent = emptyenv())
+
+Individual$new <- function() .Call(wrap__Individual__new)
+
+Individual$get <- function() .Call(wrap__Individual__get, self)
+
+Individual$compute_auc <- function(data, min_value) invisible(.Call(wrap__Individual__compute_auc, self, data, min_value))
+
+Individual$compute_metrics <- function(data, min_value) invisible(.Call(wrap__Individual__compute_metrics, self, data, min_value))
+
+Individual$evaluate <- function(data, min_value) .Call(wrap__Individual__evaluate, self, data, min_value)
+
+Individual$to_string <- function() .Call(wrap__Individual__to_string, self)
+
+#' @rdname Individual
+#' @usage NULL
+#' @export
+`$.Individual` <- function (self, name) { func <- Individual[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.Individual` <- `$.Individual`
 
 
 # nolint end
