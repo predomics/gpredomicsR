@@ -210,8 +210,8 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "gpredomics"
-version = "0.4.1"
-source = "git+https://github.com/predomics/gpredomics.git?tag=v0.4.1#d11d8b0af466fcd6a1af9affa24f1f1731d3257c"
+version = "0.4.2"
+source = "git+https://github.com/predomics/gpredomics.git?tag=v0.4.2#daf7693603c3b4166c751ec769862c13f5f244fd"
 dependencies = [
  "chrono",
  "csv",

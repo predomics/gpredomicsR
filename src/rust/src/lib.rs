@@ -394,8 +394,8 @@ impl Individual {
     pub fn compute_metrics(&mut self, data: &Data) {
         let i = &mut self.intern;
 
-        (i.threshold, i.accuracy, i.sensitivity, i.specificity) = 
-                    i.compute_threshold_and_metrics(&data.intern);
+        (i.accuracy, i.sensitivity, i.specificity) = 
+                    i.compute_metrics(&data.intern);
     }
 
     /// Compute algorithm score
