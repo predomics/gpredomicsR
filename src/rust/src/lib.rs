@@ -184,7 +184,7 @@ impl Param {
             "thread_number" => self.intern.general.thread_number = value as usize,
             "k_penalty" => self.intern.general.k_penalty = value,
             // TODO @raynald continue here
-            "X"|"y"|"Xtest"|"ytest"|"pvalue_method"|"algo"|"language"|"data_type" => panic!("Use param$set_string() for {}",variable),
+            "X"|"y"|"Xtest"|"ytest"|"pvalue_method"|"algo"|"language"|"data_type"|"fit" => panic!("Use param$set_string() for {}",variable),
             "keep_all_generations" => panic!("Use dedicated method param$set_keep_all_generation()"),
             "log_level"|"log_base"|"log_suffix" => panic!("Cannot set logs this way, create or get back your GLogger object"),
             _ => panic!("Unknown variable: {} ", variable)
@@ -202,6 +202,7 @@ impl Param {
             "algo" => self.intern.general.algo = string,
             "language" => self.intern.general.language = string,
             "data_type" => self.intern.general.data_type = string,
+            "fit" => self.intern.general.fit = string,
             "log_level"|"log_base"|"log_suffix" => panic!("Cannot set logs this way, create or get back your GLogger object"),
             _ => panic!("Variable unknown or not settable byt set_string: {} ", variable)
         }
