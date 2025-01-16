@@ -127,5 +127,20 @@ Individual$to_string <- function() .Call(wrap__Individual__to_string, self)
 #' @export
 `[[.Individual` <- `$.Individual`
 
+#' @export 
+Data <- new.env(parent = emptyenv())
+
+Data$new <- function() .Call(wrap__Data__new)
+
+Data$get <- function() .Call(wrap__Data__get, self)
+
+#' @rdname Data
+#' @usage NULL
+#' @export
+`$.Data` <- function (self, name) { func <- Data[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.Data` <- `$.Data`
+
 
 # nolint end

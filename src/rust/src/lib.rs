@@ -708,6 +708,7 @@ extendr_module! {
     impl Param;
     impl GLogger;
     impl Individual;
+    impl Data;
     fn ga;
 }
 
