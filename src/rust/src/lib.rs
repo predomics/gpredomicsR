@@ -127,8 +127,7 @@ impl Param {
             ("fit", Robj::from(self.intern.general.fit.clone())),
             ("k_penalty", Robj::from(self.intern.general.k_penalty.clone())),
             ("overfit_penalty", Robj::from(self.intern.general.overfit_penalty.clone())),
-            ("fnr_penalty", Robj::from(self.intern.general.fnr_penalty.clone())),
-            ("fpr_penalty", Robj::from(self.intern.general.fpr_penalty.clone())),
+            ("fr_penalty", Robj::from(self.intern.general.fr_penalty.clone())),
         ]);
 
         // Convert Data fields
@@ -375,6 +374,7 @@ impl Individual {
             ("threshold", Robj::from(self.intern.threshold)),
             ("language", Robj::from(self.intern.get_language())),
             ("data_type", Robj::from(self.intern.get_data_type())),
+            ("data_type_minimum", Robj::from(self.intern.data_type_minimum)),
             ("hash", Robj::from(self.intern.hash.to_string()))
         ]).into_robj();
 
@@ -384,23 +384,30 @@ impl Individual {
 
     /// Compute auc for this individual
     /// @export
-    pub fn compute_auc(&mut self, data: &Data, min_value: f64) {
-        self.intern.compute_auc(&data.intern, min_value);
+    pub fn compute_auc(&mut self, data: &Data) {
+        self.intern.compute_auc(&data.intern);
     }    
 
     /// Compute threshold/accuracy/sensitivity/specificity for this individual
     /// @export
-    pub fn compute_metrics(&mut self, data: &Data, min_value: f64) {
+    pub fn compute_metrics(&mut self, data: &Data) {
         let i = &mut self.intern;
 
         (i.threshold, i.accuracy, i.sensitivity, i.specificity) = 
-                    i.compute_threshold_and_metrics(&data.intern, min_value);
+                    i.compute_threshold_and_metrics(&data.intern);
     }
 
     /// Compute algorithm score
     /// @export
-    pub fn evaluate(&self, data: &Data, min_value: f64) -> Robj {
-        self.intern.evaluate(&data.intern, min_value).into_robj()
+    pub fn evaluate(&self, data: &Data) -> Robj {
+        self.intern.evaluate(&data.intern).into_robj()
+    }
+
+    /// Return a list of predicted class for the samples in the data
+    /// @export
+    pub fn predict(&self, data: &Data) -> Robj {
+        self.intern.evaluate(&data.intern).into_iter().map(|x| {if x>=self.intern.threshold {1} else {0}}).collect::<Vec<i32>>()
+        .into_robj()
     }
 
     /// Print the individual

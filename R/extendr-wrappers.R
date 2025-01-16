@@ -109,11 +109,13 @@ Individual$new <- function() .Call(wrap__Individual__new)
 
 Individual$get <- function() .Call(wrap__Individual__get, self)
 
-Individual$compute_auc <- function(data, min_value) invisible(.Call(wrap__Individual__compute_auc, self, data, min_value))
+Individual$compute_auc <- function(data) invisible(.Call(wrap__Individual__compute_auc, self, data))
 
-Individual$compute_metrics <- function(data, min_value) invisible(.Call(wrap__Individual__compute_metrics, self, data, min_value))
+Individual$compute_metrics <- function(data) invisible(.Call(wrap__Individual__compute_metrics, self, data))
 
-Individual$evaluate <- function(data, min_value) .Call(wrap__Individual__evaluate, self, data, min_value)
+Individual$evaluate <- function(data) .Call(wrap__Individual__evaluate, self, data)
+
+Individual$predict <- function(data) .Call(wrap__Individual__predict, self, data)
 
 Individual$to_string <- function() .Call(wrap__Individual__to_string, self)
 
