@@ -503,19 +503,11 @@ impl Experiment {
     ///
     /// @export
     pub fn get_generation(&self, generation: i32) -> Robj {
-        let generation_index = generation as usize;
-        let individuals_count = self.generations[generation_index].individuals.len();
-        let mut individuals_list = Vec::new();
-
-        for order in 0..individuals_count {
-            let individual_robj = self.individual(generation, order as i32).get();
-            individuals_list.push(individual_robj);
-        }
-
-        let generation_robj = Robj::from(individuals_list);
-
-        generation_robj
-    }
+        self.generations[generation as usize].individuals.iter().cloned()
+            .map(|i| {(Individual {intern: i, features: Vec::new()}).get()})
+            .collect::<Vec<Robj>>()
+            .into_robj()
+    } 
 
 /*
     /// list all individuals at generation #generation
