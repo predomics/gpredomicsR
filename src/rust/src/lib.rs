@@ -151,6 +151,7 @@ impl Param {
             ("kmin", Robj::from(self.intern.ga.kmin)),
             ("kmax", Robj::from(self.intern.ga.kmax)),
             ("select_elite_pct", Robj::from(self.intern.ga.select_elite_pct)),
+            ("select_niche_pct", Robj::from(self.intern.ga.select_niche_pct)),
             ("select_random_pct", Robj::from(self.intern.ga.select_random_pct)),
             ("mutated_children_pct", Robj::from(self.intern.ga.mutated_children_pct)),
             ("mutated_features_pct", Robj::from(self.intern.ga.mutated_features_pct)),
@@ -183,6 +184,9 @@ impl Param {
             "data_type_epsilon" => self.intern.general.data_type_epsilon = value,
             "thread_number" => self.intern.general.thread_number = value as usize,
             "k_penalty" => self.intern.general.k_penalty = value,
+            "select_elite_pct" => self.intern.ga.select_elite_pct = value,
+            "select_niche_pct" => self.intern.ga.select_niche_pct = value,
+            "select_random_pct" => self.intern.ga.select_random_pct = value,
             // TODO @raynald continue here
             "X"|"y"|"Xtest"|"ytest"|"pvalue_method"|"algo"|"language"|"data_type"|"fit" => panic!("Use param$set_string() for {}",variable),
             "keep_all_generations" => panic!("Use dedicated method param$set_keep_all_generation()"),
