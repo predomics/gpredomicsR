@@ -124,10 +124,11 @@ impl Param {
             ("log_base", Robj::from(self.intern.general.log_base.clone())),
             ("log_suffix", Robj::from(self.intern.general.log_suffix.clone())),
             ("log_level", Robj::from(self.intern.general.log_level.clone())),
-            ("fit", Robj::from(self.intern.general.fit.clone())),
+            ("fit", Robj::from(format!("{:?}",self.intern.general.fit))),
             ("k_penalty", Robj::from(self.intern.general.k_penalty.clone())),
             ("overfit_penalty", Robj::from(self.intern.general.overfit_penalty.clone())),
             ("fr_penalty", Robj::from(self.intern.general.fr_penalty.clone())),
+            ("gpu", Robj::from(self.intern.general.gpu.clone())),
         ]);
 
         // Convert Data fields
@@ -189,7 +190,7 @@ impl Param {
             "select_random_pct" => self.intern.ga.select_random_pct = value,
             // TODO @raynald continue here
             "X"|"y"|"Xtest"|"ytest"|"pvalue_method"|"algo"|"language"|"data_type"|"fit" => panic!("Use param$set_string() for {}",variable),
-            "keep_all_generations" => panic!("Use dedicated method param$set_keep_all_generation()"),
+            "keep_all_generations"|"gpu" => panic!("Use param$set_bool() for {}",variable),
             "log_level"|"log_base"|"log_suffix" => panic!("Cannot set logs this way, create or get back your GLogger object"),
             _ => panic!("Unknown variable: {} ", variable)
         }
@@ -206,9 +207,22 @@ impl Param {
             "algo" => self.intern.general.algo = string,
             "language" => self.intern.general.language = string,
             "data_type" => self.intern.general.data_type = string,
-            "fit" => self.intern.general.fit = string,
+            "fit" => self.intern.general.fit = match string.to_lowercase().as_str() { 
+                "auc" => gpredomics::param::FitFunction::auc,
+                "specificity" => gpredomics::param::FitFunction::specificity,
+                "sensitivity" => gpredomics::param::FitFunction::sensitivity,
+                _ => panic!("Unknown fit function: {}", string)
+             }, //self.intern.general.fit = string,
             "log_level"|"log_base"|"log_suffix" => panic!("Cannot set logs this way, create or get back your GLogger object"),
             _ => panic!("Variable unknown or not settable byt set_string: {} ", variable)
+        }
+    }
+
+    pub fn set_bool(&mut self, variable: &str, value: bool) {
+        match variable {
+            "gpu" => self.intern.general.gpu = value,
+            "keep_all_generations" => self.intern.ga.keep_all_generations = value,
+            _ => panic!("Variable unknown or not settable byt set_bool: {} ", variable)
         }
     }
 

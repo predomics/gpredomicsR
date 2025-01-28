@@ -75,6 +75,8 @@ Param$set <- function(variable, value) invisible(.Call(wrap__Param__set, self, v
 
 Param$set_string <- function(variable, string) invisible(.Call(wrap__Param__set_string, self, variable, string))
 
+Param$set_bool <- function(variable, value) invisible(.Call(wrap__Param__set_bool, self, variable, value))
+
 #' @rdname Param
 #' @usage NULL
 #' @export
