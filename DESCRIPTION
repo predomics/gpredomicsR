@@ -1,8 +1,9 @@
 Package: gpredomicsR
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.1
+Title: This package is part of the predomics suite and adds the analytical compability to the gpredomics package coded in Rust.
+Version: 0.1.0
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+    person("Edi", "Prifti",  "first.last@example.com", role = c("aut"))
+    person("Raynald", "de Lahondès", , "first.last@example.com", role = c("aut"))
 Description: What the package does (one paragraph).
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
