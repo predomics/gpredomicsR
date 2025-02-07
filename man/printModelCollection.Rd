@@ -4,7 +4,7 @@
 \alias{printModelCollection}
 \title{Print Information about a Model Collection}
 \usage{
-printModelCollection(obj, indent = "\\t--- ", method = "long")
+printModelCollection(obj, indent = "\\t--- ", method = "short")
 }
 \arguments{
 \item{obj}{A model collection object (list of populations).}

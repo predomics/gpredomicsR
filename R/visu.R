@@ -28,10 +28,10 @@ printModel <- function(mod, method = "short", score = "fit") {
              ind.pos <- mod$coeff > 0
              ind.neg <- mod$coeff < 0
              
-             term.pos <- if (any(ind.pos)) paste0("+", mod$indexes[ind.pos], collapse = " ") else "0"
-             term.neg <- if (any(ind.neg)) paste0("+", mod$indexes[ind.neg], collapse = " ") else "0"
+             term.pos <- if (any(ind.pos)) paste0("+", sort(mod$indexes[ind.pos]), collapse = " ") else "0"
+             term.neg <- if (any(ind.neg)) paste0("+", sort(mod$indexes[ind.neg]), collapse = " ") else "0"
              
-             res <- paste0("(", term.pos, ")", " - ", "(", term.neg, ")", " > ", mod$threshold, " then ", "TODO")
+             res <- paste0("(", term.pos, ")", " - ", "(", term.neg, ")", " ≥ ", format(mod$threshold, scientific = TRUE), " then ", "1")
              
              mod.fit <- mod[[score]]
              fit_info <- if (!is.na(mod.fit)) paste("|(F=", signif(mod.fit, 4), ")", sep="") else ""
@@ -132,7 +132,7 @@ printPopulation <- function(obj, method = "short", score = "fit", indent = "") {
 #' @param method Print format: "short" (summary) or "long" (detailed, per population).
 #' @return None. Prints the information directly.
 #' @export
-printModelCollection <- function(obj, indent = "\t--- ", method = "long") {
+printModelCollection <- function(obj, indent = "\t--- ", method = "short") {
   
   # Check if the object is a valid model collection
   if (!isModelCollection(obj)) {
@@ -163,6 +163,135 @@ printModelCollection <- function(obj, indent = "\t--- ", method = "long") {
   )
 }
 
+
+#' Print Information about an Experiment Object
+#'
+#' This function prints details about an experiment object, including execution time,
+#' parameters, dataset, and model collection.
+#'
+#' @param obj An experiment object created by `runExperiment()`.
+#' @param indent A string for indentation to structure the output.
+#'
+#' @return None. The function prints experiment details to the console.
+#' @export
+printExperiment <- function(obj, indent = "\t--- ") {
+  
+  if (!isExperiment(obj)) {
+    warning("printExperiment: The provided object is not a valid experiment.")
+    return(NULL)
+  }
+  
+  cat("\n========== Experiment Summary ==========\n")
+  
+  # Print execution time
+  cat(paste(indent, "Execution Time (mins):", signif(obj$execTime, 2), "\n"))
+  
+  # Print Parameters with Proper Nesting
+  printNestedList <- function(lst, indent) {
+    for (name in names(lst)) {
+      value <- lst[[name]]
+      if (is.list(value)) {
+        cat(paste0(indent, name, ":\n"))
+        printNestedList(value, paste0(indent, "   "))  # Recursively print sublists
+      } else {
+        cat(paste0(indent, name, ": ", value, "\n"))
+      }
+    }
+  }
+  
+  cat("\n========== Parameters ==========\n")
+  printNestedList(obj$params, indent)
+  
+  # Print Rust-based Experiment Info
+  cat("\n========== Rust Objects ==========\n")
+  cat(paste(indent, "Experiment Pointer:", if (!is.null(obj$rust$experiment)) "Available" else "NULL", "\n"))
+  cat(paste(indent, "Running Flag:", if (!is.null(obj$rust$running_flag)) "Active" else "NULL", "\n"))
+  
+  # Print Data Overview
+  cat("\n========== Dataset ==========\n")
+  if (!is.null(obj$data$train)) {
+    cat(paste(indent, "Training Samples:", nrow(obj$data$train), "\n"))
+    cat(paste(indent, "Training Features:", ncol(obj$data$train), "\n"))
+  } else {
+    cat(paste(indent, "Training Data: NULL\n"))
+  }
+  
+  if (!is.null(obj$data$test)) {
+    cat(paste(indent, "Test Samples:", nrow(obj$data$test), "\n"))
+    cat(paste(indent, "Test Features:", ncol(obj$data$test), "\n"))
+  } else {
+    cat(paste(indent, "Test Data: NULL\n"))
+  }
+  
+  # Print Model Collection
+  cat("\n========== Model Collection ==========\n")
+  if (isModelCollection(obj$model_collection)) {
+    printModelCollection(obj$model_collection, method = "short")
+  } else {
+    cat(paste(indent, "No valid models found.\n"))
+  }
+}
+
+
+#' Print Summary of Predomics Object
+#'
+#' This function prints a summary of a given object, identifying its type
+#' (model, population, classifier, experiment, or model collection) and calling
+#' the appropriate print function to display relevant information about the object.
+#'
+#' @param obj An object that can be of type model, population, classifier,
+#'   experiment, or model collection.
+#'
+#' @return None. The function prints the summary of the object directly to the console.
+#'
+#' @details The function checks the type of the provided object using `isModel`,
+#' `isPopulation`, `isClf`, `isExperiment`, and `isModelCollection` functions.
+#' Based on the object type, it prints a summary:
+#' - **Model**: Calls `printModel` with a detailed description of the model.
+#' - **Population**: Calls `printPopulation`, showing a summary of the population of models.
+#' - **Model Collection**: Calls `printModelCollection` to show a summary of a collection of models.
+# #' - **Experiment**: Calls `printExperiment` to display experiment details.
+# #' - **Classifier**: Calls `printClassifier` for classifier details.
+#'
+#' If the object type is not recognized, an error message is printed.
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming 'model', 'population', 'classifier', 'experiment', and 'model_collection' are valid objects
+#' printy(model)
+#' printy(population)
+#' printy(model_collection)
+#' }
+#'
+#' @author Edi Prifti (IRD)
+#' @export
+printy <- function(obj) {
+  
+  if (isModel(obj)) {
+    cat("Summary of Model object:\n")
+    printModel(mod = obj, method = "short")
+    
+  } else if (isPopulation(obj)) {
+    cat(sprintf("Summary of a population with %d models:\n", length(obj)))
+    
+    # Print details of up to 5 models
+    printPopulation(obj = obj[1:min(5, length(obj))], method = "short")
+    
+    # Indicate that more models exist
+    if (length(obj) > 5) cat("... and more models in the population\n")
+    
+  } else if (isModelCollection(obj)) {
+    cat(sprintf("Summary of a Model Collection with %d populations:\n", length(obj)))
+    printModelCollection(obj = obj, method = "short")
+    
+  } else if (isExperiment(obj)) {
+    cat("Summary of Experiment object:\n")
+    printExperiment(obj)
+  } 
+  else {
+    stop("printy: The provided object is not a valid Predomics object.")
+  }
+}
 
 #' Analyze Features in a Population of Models
 #'
@@ -416,3 +545,217 @@ analyzePopulationFeatures <- function(pop, X, y, res_clf, makeplot = TRUE, name 
 }
 
 
+
+#' Prints as text the detail on a given experiment along with summarized results (if computed)
+#'
+#' @description This function will use the miic package to compute the co-occurance of features in a population of models
+#' @param pop.noz: a data.frame of in features in the rows and models in the columns. 
+#' This table contains the feature coefficients in the models and is obtained by makeFeatureAnnot()
+#' @param feature.annot: a data frame with annotation on features obtained by makeFeatureAnnot()
+#' @param cor.th: a threshold abtained on the partial correlation value
+#' @param verbose: print out information during run
+#' @param layout: the network layout by default is circular (layout_in_circle) and will be a weighted Fruchterman-Reingold otherwise
+#' @return plots a graph
+#' @export
+makeFeatureModelPrevalenceNetworkMiic <- function(pop.noz, 
+                                                  feature.annot, 
+                                                  cor.th = 0.3, 
+                                                  verbose = TRUE, 
+                                                  layout = "circlular")
+{
+  require(igraph)
+  require(miic)
+  
+  if(verbose) print("Creating the miic object")
+  mobj <- miic(inputData = as.data.frame(t(pop.noz)))
+  #miic.plot(mobj, igraphLayout = igraph::layout.fruchterman.reingold)
+  
+  #-----
+  # load the edge information for spectral3off2 network
+  edges <- mobj$retained.edges.summary
+  if(verbose) print(paste(nrow(edges),"edges are found"))
+  #dim(edges) # 350 edges
+  colnames(edges)[1:2] <- c("from","to")
+  rownames(edges) <- paste(edges$from, edges$to, sep=" => ")
+  
+  # clean those edges that have no link
+  edges <- edges[abs(edges$partial_correlation) > cor.th,]
+  if(verbose) print(paste(nrow(edges),"edges are kept after filtering by absolute correlation threshold", cor.th))
+  
+  
+  # BUILD NETWORK
+  #-------------------------------------------------------------------------------------------
+  # ANNOTATION of the edges
+  allnodes <- unique(c(edges$from,edges$to))
+  edges.annot <- feature.annot[allnodes,] 
+  edges.annot <- data.frame(rownames(edges.annot),edges.annot);
+  colnames(edges.annot)[match("name",colnames(edges.annot))] <- "name_long"; 
+  colnames(edges.annot)[1] <- "name"
+  
+  # create the igraph object
+  gD <- graph.data.frame(d = edges, directed = TRUE, 
+                         vertices = edges.annot)
+  
+  if(verbose) print(paste("The network is built"))
+  
+  # Calculate degree for all nodes
+  degAll <- igraph::degree(gD, v = V(gD), mode = "all")
+  gD <- set.vertex.attribute(gD, "degree", index = V(gD)$name, value = degAll)
+  # Calculate betweenness for all nodes
+  betAll <- igraph::betweenness(gD, v = V(gD), directed = FALSE) / (((vcount(gD) - 1) * (vcount(gD)-2)) / 2)
+  betAll.norm <- (betAll - min(betAll))/(max(betAll) - min(betAll)); rm(betAll)
+  # Add new node/edge attributes based on the calculated node properties/similarities
+  gD <- set.vertex.attribute(gD, "betweenness", index = V(gD)$name, value = betAll.norm)
+  
+  # Calculate edge properties and add to the network
+  E(gD)$color <- c("#DC143C","#A6A6A6")[as.factor(factor(sign(E(gD)$infOrt), levels=c('-1','1')))]
+  E(gD)$infOrt[E(gD)$infOrt==  1] <- 0; 
+  E(gD)$infOrt[E(gD)$infOrt== -2] <- 1
+  
+  #Calculate Dice similarities between all pairs of nodes
+  dsAll <- similarity.dice(gD, vids = V(gD), mode = "all")
+  # The following function will transform a square matrix to an edge driven one and add values to each edge
+  F1 <- function(x) {data.frame(dice = dsAll[which(V(gD)$name == as.character(x$from)), which(V(gD)$name == as.character(x$to))])}
+  # library(plyr) => took this out to force changing to tidyr
+  edges.ext <- ddply(edges, .variables=c("from", "to"), function(x) data.frame(F1(x))); dim(edges.ext)
+  
+  gD <- set.edge.attribute(gD, "similarity", index = E(gD), value = 0)
+  E(gD)[as.character(edges.ext$from) %--% as.character(edges.ext$to)]$similarity <- as.numeric(edges.ext$dice)
+  
+  # Check the attributes
+  summary(gD)
+  
+  if(layout == "circular")
+  {
+    l <- layout_in_circle(gD, order = V(gD))  
+  }else
+  {
+    l <- layout_with_fr(gD, weights=E(gD)$weight)
+  }
+  
+  plot(gD,
+       vertex.label = V(gD)$name_long,
+       vertex.color = c("deepskyblue1", "firebrick1")[factor(V(gD)$wilcox.class)],
+       vertex.size=V(gD)$mod.prev/max(V(gD)$mod.prev)*10 + 3,
+       edge.arrow.size=.2,
+       asp=TRUE,
+       rescale=TRUE,
+       layout=l,
+       edge.arrow.mode = E(gD)$infOrt,
+       vertex.label.cex = 0.7,
+       vertex.label.dist=0,
+       edge.width = log(E(gD)$log_confidence)
+  )
+  
+  #return(gD)
+}
+
+
+#' Plot Feature Abundance by Class
+#'
+#' Visualizes the abundance of selected features across different classes using **boxplots**. 
+#' Supports both **classification** (discrete classes) and **regression** (continuous response).
+#'
+#' @param features Character vector of feature names to plot.
+#' @param X Data matrix or data frame (features in rows, samples in columns).
+#' @param y Vector of class labels (factor for classification) or numeric values (for regression).
+#' @param topdown Logical; if `TRUE`, features are displayed from top to bottom (default: `TRUE`).
+#' @param main Plot title (default: `""`).
+#' @param plot Logical; if `TRUE`, displays the plot, otherwise returns statistical results (default: `TRUE`).
+#' @param log_scale Logical; if `TRUE`, plots abundance data on a log10 scale (default: `FALSE`).
+#' @param col.pt Colors for data points (default: `c("deepskyblue4", "firebrick4")`).
+#' @param col.bg Colors for boxplot backgrounds (default: `c("deepskyblue1", "firebrick1")`).
+#'
+#' @return If `plot = TRUE`, returns a ggplot object. Otherwise, returns a data frame of statistical test results.
+#' 
+#' @examples
+#' # Example: Classification
+#' features <- c("feature1", "feature2")
+#' X <- data.frame(feature1 = rnorm(100), feature2 = rnorm(100))
+#' y <- sample(c(1, -1), 100, replace = TRUE)
+#' plotAbundanceByClass(features, X, y, log_scale = TRUE)
+#'
+#' @import ggplot2
+#' @import tidyr
+#' @export
+plotAbundanceByClass <- function(features, X, y, topdown = TRUE, 
+                                 main = "", plot = TRUE, log_scale = FALSE,
+                                 col.pt = c("deepskyblue4", "firebrick4"), 
+                                 col.bg = c("deepskyblue1", "firebrick1")) {
+  
+  check.X_y(X, y)
+  
+  # Convert raw class if needed
+  if (is.raw(y)) y <- as.integer(y)
+  if (!is.vector(y)) y <- as.vector(y)
+  
+  # Ensure proper trait type
+  if (is.numeric(y) && length(unique(y)) > 2) {
+    mode <- "regression"
+  } else {
+    y <- as.factor(y)
+    mode <- "classification"
+  }
+  
+  if (any(is.na(match(features, rownames(X))))) {
+    stop("plotAbundanceByClass: Some features are not found in the dataset.")
+  }
+  
+  X <- as.matrix(X)
+  dat <- X[features, , drop = FALSE]
+  
+  if (mode == "classification") {
+    lev <- unique(y)
+    datl1 <- X[features, y == lev[1], drop = FALSE]
+    datl2 <- X[features, y == lev[2], drop = FALSE]
+    
+    dat.test <- filterfeaturesK(dat, y, k = nrow(dat), sort = FALSE)
+    
+    if (!plot) return(dat.test)
+    
+    qvals <- ifelse(dat.test$q < 0.05, "*", "")
+    
+    datl1_long <- as.data.frame(datl1) %>%
+      tibble::rownames_to_column("feature") %>%
+      pivot_longer(-feature, names_to = "observation", values_to = "abundance") %>%
+      mutate(class = lev[1])
+    
+    datl2_long <- as.data.frame(datl2) %>%
+      tibble::rownames_to_column("feature") %>%
+      pivot_longer(-feature, names_to = "observation", values_to = "abundance") %>%
+      mutate(class = lev[2])
+    
+    dat.reshape <- rbind(datl1_long, datl2_long)
+    
+  } else {  # Regression
+    dat.test <- filterfeaturesK(dat, y, k = nrow(dat), sort = FALSE)
+    
+    if (!plot) return(dat.test)
+    
+    qvals <- ifelse(dat.test$q < 0.05, "*", "")
+    
+    dat.reshape <- as.data.frame(dat) %>%
+      tibble::rownames_to_column("feature") %>%
+      pivot_longer(-feature, names_to = "observation", values_to = "abundance") %>%
+      mutate(class = "all")
+  }
+  
+  dat.reshape$feature <- factor(dat.reshape$feature, levels = if (topdown) rev(features) else features)
+  
+  p <- ggplot(dat.reshape, aes(x = feature, y = abundance, fill = class, color = class)) +
+    geom_boxplot() + coord_flip() +
+    theme_bw() +
+    scale_color_manual(values = col.pt) +
+    scale_fill_manual(values = col.bg) +
+    theme(legend.position = "none") +
+    ggtitle(main)
+  
+  if (log_scale) {
+    p <- p + scale_y_log10()
+  }
+  
+  p <- p + annotate("text", y = max(dat.reshape$abundance, na.rm = TRUE) * 1.1, 
+                    x = 1:length(qvals), label = qvals, color = "gray", size = 7)
+  
+  return(p)
+}

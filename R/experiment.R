@@ -1,3 +1,95 @@
+#' Run a Predomics Experiment
+#'
+#' This function executes an experiment using the `gpredomicsR` package by loading
+#' experiment parameters, setting up a logging mechanism, and running a genetic
+#' algorithm. It returns a structured list containing the experiment results.
+#'
+#' @param param.path A string specifying the path to the parameter file (YAML format).
+#'   Default is `"sample/param.yaml"`.
+#'
+#' @return A list containing:
+#' \item{rust}{A list with Rust objects: the experiment, parameters, running flag, and logger.}
+#' \item{params}{The parameter settings loaded from the YAML file.}
+#' \item{data}{A list with training and testing datasets.}
+#' \item{model_collection}{An R representation of the experiment's model evolution.}
+#' \item{execTime}{The execution time of the experiment in minutes.}
+#'
+#' @details
+#' The function follows these steps:
+#' - Saves the current working directory and switches to the experiment directory.
+#' - Initializes or retrieves a global logger to prevent duplicate loggers.
+#' - Loads parameters from the YAML file.
+#' - Runs the genetic algorithm to generate and evaluate models.
+#' - Constructs and returns an experiment object containing key components.
+#'
+#' @examples
+#' \dontrun{
+#' exp <- runExperiment(param.path = "sample/param.yaml")
+#' print(exp)
+#' }
+#'
+#' @author Edi Prifti (IRD)
+#' @export
+runExperiment <- function(param.path = "sample/param.yaml") {
+  startingTime <- Sys.time()
+  
+  # Extract the directory path from param.path
+  dir.path <- dirname(param.path)
+  
+  # Save the current working directory
+  original.dir <- getwd()
+  
+  # Ensure working directory is restored even if an error occurs
+  on.exit(setwd(original.dir), add = TRUE)
+  
+  # Try to use an existing global logger, otherwise create a new one
+  if (!exists("global_glog", envir = .GlobalEnv)) {
+    message("Initializing new GLogger instance...")
+    glog_attempt <- tryCatch(GLogger$new(), error = function(e) NULL)
+    
+    if (!is.null(glog_attempt)) {
+      assign("global_glog", glog_attempt, envir = .GlobalEnv)
+    } else {
+      warning("Logger initialization failed. Proceeding without logging.")
+    }
+  }
+  
+  # Get the global logger (even if initialization failed, this avoids re-initialization)
+  glog <- get("global_glog", envir = .GlobalEnv, inherits = FALSE)
+  
+  running_flag <- RunningFlag$new()
+  
+  # Load parameters
+  paramRust <- Param$load(param.path)
+  
+  # Change to the new directory
+  setwd(dir.path)
+  
+  # Run the genetic algorithm
+  expRust <- ga(paramRust, running_flag)
+  
+  # Create experiment structure
+  experiment <- list(
+    rust = list(
+      experiment = expRust,
+      param = paramRust,
+      running_flag = running_flag,
+      glog = glog
+    ),
+    params = paramRust$get(),
+    data = list(
+      train = expRust$get_data_robj(train = TRUE),
+      test = expRust$get_data_robj(train = FALSE)
+    ),
+    model_collection = parseExperiment(expRust),  # Convert Rust pointer to R object
+    execTime = as.numeric(Sys.time() - startingTime, units = "mins")
+  )
+  
+  return(experiment)
+}
+
+
+
 #' @title parseExperiment
 #' @description Parse the experiment object to extract the individuals
 #' @param exp The experiment object

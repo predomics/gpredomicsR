@@ -57,6 +57,32 @@ isModelCollection <- function(obj) {
 }
 
 
+#' Check if an Object is an Experiment
+#'
+#' @description This function evaluates whether an object is a valid experiment.
+#' It ensures that the object is a list and contains essential attributes.
+#'
+#' @param obj An object to test.
+#' @return TRUE if the object is an experiment, FALSE otherwise.
+#' @export
+isExperiment <- function(obj) {
+  # Check if the object is NULL
+  if (is.null(obj)) {
+    return(FALSE)
+  }
+  
+  # Check if the object is a list
+  if (!is.list(obj)) {
+    return(FALSE)
+  }
+  
+  # Check for essential experiment attributes
+  required_fields <- c("rust", "params", "data", "model_collection", "execTime")
+  has_required_fields <- all(required_fields %in% names(obj))
+  
+  return(has_required_fields)
+}
+
 
 #' Retrieve the Best Individual from a Population
 #'
@@ -454,6 +480,148 @@ selectBestPopulation <- function(pop, score = "fit", p = 0.05, k_penalty = 0, k_
     return(NULL)
   } else {
     return(selected_pop)
+  }
+}
+
+
+
+
+#' Selects the top k features that are significantly associated with the class to predict
+#'
+#' @description Runs statistics on the data and selects a subset of k features that are the most significant.
+#' Besides filtering, this function can be used in a larger statistical context.
+#' 
+#' @param data The dataset X (features as rows, samples as columns).
+#' @param trait The target variable (y), either a numeric vector (for regression) or a factor (for classification).
+#' @param k The number of top features to return (default: 10).
+#' @param type The statistical test to use ("wilcoxon", "t.test", "spearman", "pearson"). Default: "wilcoxon".
+#' @param restrict Logical vector indicating which samples to include (default: all TRUE).
+#' @param multiple.adjust Method for multiple testing correction (default: "BH").
+#' @param paired Whether paired statistics should be run (default: FALSE).
+#' @param sort Whether to return features sorted by p-value significance (default: TRUE).
+#' @param verbose Whether to print progress messages (default: FALSE).
+#' @param verbose.step Frequency of progress updates (default: NULL).
+#' @param return.data If TRUE, returns the filtered dataset instead of statistics (default: FALSE).
+#' @export
+filterfeaturesK <- function(data, 
+                            trait, 
+                            k = 10, 
+                            type = "wilcoxon", 
+                            restrict = rep(TRUE, ncol(data)),  
+                            multiple.adjust = "BH", 
+                            paired = FALSE, 
+                            sort = TRUE,
+                            verbose = FALSE,
+                            verbose.step = NULL,
+                            return.data = FALSE) 
+{
+  # Handle raw class conversion
+  if (is.raw(trait)) {
+    trait <- as.integer(trait)  # Convert raw to numeric
+  }
+  
+  # Ensure it's a vector
+  if (!is.vector(trait)) {
+    trait <- as.vector(trait)  # Force conversion
+  }
+  
+  # Convert binary numeric to factor
+  unique_vals <- unique(trait)
+  if (length(unique_vals) == 2) {
+    trait <- as.factor(trait)
+  }
+  
+  # Ensure trait is valid
+  if (!is.numeric(trait) && !is.factor(trait)) {
+    stop("filterfeaturesK: 'trait' must be either numeric (for regression) or a factor (for classification).")
+  }
+  
+  # Check dimensions
+  if (length(trait) != ncol(data)) {
+    stop("filterfeaturesK: Incompatible dimensions between 'data' and 'trait'.")
+  }
+  
+  # Ensure data is a matrix
+  if (!is.matrix(data)) {
+    data <- as.matrix(data)
+  }
+  
+  # Ensure type is valid
+  valid_types <- c("spearman", "pearson", "wilcoxon", "t.test")
+  if (!type %in% valid_types) {
+    stop("filterfeaturesK: Unknown type! Please use one of: spearman, pearson, wilcoxon, t.test")
+  }
+  
+  # Classification vs Regression Mode
+  if (is.factor(trait)) {
+    mode <- "classification"
+  } else {
+    mode <- "regression"
+  }
+  
+  # Initialize result dataframe
+  res <- data.frame(
+    rho = rep(NA, nrow(data)),
+    rho2 = rep(NA, nrow(data)),
+    p = rep(NA, nrow(data)),
+    q = rep(NA, nrow(data)),
+    status = rep(NA, nrow(data)),
+    row.names = if (!is.null(rownames(data))) rownames(data) else NULL
+  )
+  
+  # Feature selection process
+  for (i in seq_len(nrow(data))) {
+    vd <- data[i, restrict]
+    vt <- trait[restrict]
+    
+    if (mode == "classification") {
+      if (length(levels(vt)) != 2) {
+        stop("filterfeaturesK: For classification, 'trait' should have exactly two levels.")
+      }
+      
+      test_result <- tryCatch(
+        {
+          if (type == "wilcoxon") {
+            stats::wilcox.test(vd ~ vt, paired = paired)$p.value
+          } else {
+            stats::t.test(vd ~ vt, paired = paired)$p.value
+          }
+        },
+        error = function(e) NA
+      )
+      
+      res[i, "p"] <- test_result
+      res[i, "status"] <- levels(vt)[which.max(tapply(vd, vt, mean))]
+      
+    } else {  # Regression
+      test_result <- tryCatch(
+        {
+          stats::cor.test(vd, vt, method = type)$p.value
+        },
+        error = function(e) NA
+      )
+      
+      res[i, "p"] <- test_result
+      res[i, "rho"] <- cor(vd, vt, method = type, use = "complete.obs")
+      res[i, "rho2"] <- res[i, "rho"]^2
+      res[i, "status"] <- ifelse(res[i, "rho"] > 0, "POS", "NEG")
+    }
+  }
+  
+  # Adjust p-values for multiple testing
+  res$q <- stats::p.adjust(res$p, method = multiple.adjust)
+  
+  # Sort by p-value if requested
+  if (sort) {
+    res <- res[order(res$p, na.last = TRUE), ]
+  }
+  
+  # Return either statistics or filtered dataset
+  if (return.data) {
+    selected_features <- rownames(res)[seq_len(min(k, nrow(res)))]
+    return(data[selected_features, , drop = FALSE])
+  } else {
+    return(head(res, k))
   }
 }
 
