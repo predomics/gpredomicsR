@@ -317,7 +317,12 @@ impl Data {
             ("features", Robj::from(&self.intern.features)),
             ("samples", Robj::from(&self.intern.samples)),
             ("feature_class", sparse_vector_to_vector(&self.intern.feature_class, self.intern.feature_len)),
-            ("feature_selection", Robj::from(&self.intern.feature_selection)),
+            // indexes start by 1 in R and need to be adapted
+            ("feature_selection", Robj::from(&self.intern.feature_selection
+                .iter()
+                .map(|x| {x+1})
+                .collect::<Vec<usize>>()
+            )),
             ("feature_len", Robj::from(&self.intern.feature_len)),
             ("sample_len", Robj::from(&self.intern.sample_len)),
             ("classes", Robj::from(&self.intern.classes))
@@ -327,9 +332,6 @@ impl Data {
         // Return the data as an R list object
         Robj::from(data)
     }
-
-    
-
 }
 
 
@@ -376,7 +378,7 @@ impl Individual {
         let mut indexes = Vec::new();
         for (index, coefficient) in self.intern.features.iter() {
             coeff.push(*coefficient as i32);     // R integers are 32-bit
-            indexes.push(*index as i32);
+            indexes.push(*index as i32+1); // indexes start by 1 in R and need to be adapted
         }
         
         // Create an integer vector from 'vals'
