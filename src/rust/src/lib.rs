@@ -11,7 +11,7 @@ use gpredomics::data::Data as GData;
 use gpredomics::param::get as GParam_get;
 use gpredomics::population::Population  as GPopulation;
 use gpredomics::individual::Individual  as GIndividual;
-use gpredomics::ga_run;
+use gpredomics::{ run_ga, run_beam };
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use flexi_logger::{Logger, WriteMode, FileSpec, LogSpecification};
@@ -137,10 +137,11 @@ impl Param {
             ("y", Robj::from(self.intern.data.y.clone())),
             ("Xtest", Robj::from(self.intern.data.Xtest.clone())),
             ("ytest", Robj::from(self.intern.data.ytest.clone())),
-            ("pvalue_method", Robj::from(self.intern.data.pvalue_method.clone())),
+            ("feature_selection_method", Robj::from(self.intern.data.feature_selection_method.clone())),
             ("feature_minimal_prevalence_pct", Robj::from(self.intern.data.feature_minimal_prevalence_pct)),
             ("feature_maximal_pvalue", Robj::from(self.intern.data.feature_maximal_pvalue)),
             ("feature_minimal_feature_value", Robj::from(self.intern.data.feature_minimal_feature_value)),
+            ("classes", Robj::from(self.intern.data.classes.clone()))
         ]);
 
         // Convert GA fields
@@ -203,7 +204,7 @@ impl Param {
             "y" => self.intern.data.y = string,
             "Xtest" => self.intern.data.Xtest = string,
             "ytest" => self.intern.data.ytest = string,
-            "pvalue_method" => self.intern.data.pvalue_method = string,
+            "feature_selection_method" => self.intern.data.feature_selection_method = string,
             "algo" => self.intern.general.algo = string,
             "language" => self.intern.general.language = string,
             "data_type" => self.intern.general.data_type = string,
@@ -319,6 +320,7 @@ impl Data {
             ("feature_selection", Robj::from(&self.intern.feature_selection)),
             ("feature_len", Robj::from(&self.intern.feature_len)),
             ("sample_len", Robj::from(&self.intern.sample_len)),
+            ("classes", Robj::from(&self.intern.classes))
             
         ]);
 
@@ -454,6 +456,8 @@ pub struct Experiment {
     generations: Vec<GPopulation>
 }
 
+/// TODO add a load function to load a new Data (and check_compatibility)
+
 /// @export
 #[extendr]
 impl Experiment {
@@ -586,6 +590,17 @@ impl Experiment {
         self.generations[generation as usize].individuals.len() as i32
     }
 
+    /// load an external dataset to evaluate the model
+    /// @export
+    pub fn load_data(&self, x_path: String, y_path: String) -> Data {
+        let mut gdata = GData::new();
+        let _ = gdata.load_data(&x_path, &y_path);
+        if !self.train_data.intern.check_compatibility(&gdata) {
+            panic!("Data not compatible with training data");
+        }
+        gdata.set_classes(self.train_data.intern.classes.clone());
+        Data {intern:gdata}
+    }
 }
 
 /// custom format for logs
@@ -694,12 +709,14 @@ impl GLogger {
 /// provided (but you can let it live its own way)
 /// @export
 #[extendr]
-pub fn ga(param: &Param, running_flag: &RunningFlag) -> Experiment {
+pub fn fit(param: &Param, running_flag: &RunningFlag) -> Experiment {
     let algo = &param.intern.general.algo;
     let (generations, train_data, test_data) = 
-        if algo=="ga" { 
-            ga_run(&param.intern, running_flag.get_arc()) 
-        }else { panic!("No such algo {}",algo) };
+    match algo.as_str() {
+        "ga" => { run_ga(&param.intern, running_flag.get_arc()) },
+        "beam" => { run_beam(&param.intern, running_flag.get_arc()) },
+        // "mcmc" => { mcmc_run(&param.intern, running_flag.get_arc()) },
+        _ => panic!("No such algo {}",algo) };
     
     Experiment {
         param: param.clone(),
@@ -719,7 +736,7 @@ extendr_module! {
     impl GLogger;
     impl Individual;
     impl Data;
-    fn ga;
+    fn fit;
 }
 
 

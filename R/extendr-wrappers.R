@@ -14,7 +14,7 @@ NULL
 #' the RunningFlag object is convenient when launching ga in a subthread, it must be
 #' provided (but you can let it live its own way)
 #' @export
-ga <- function(param, running_flag) .Call(wrap__ga, param, running_flag)
+fit <- function(param, running_flag) .Call(wrap__fit, param, running_flag)
 
 #' @export 
 RunningFlag <- new.env(parent = emptyenv())
@@ -35,6 +35,7 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 #' @export
 `[[.RunningFlag` <- `$.RunningFlag`
 
+#' TODO add a load function to load a new Data (and check_compatibility)
 #' @export
 Experiment <- new.env(parent = emptyenv())
 
@@ -53,6 +54,8 @@ Experiment$get_generation <- function(generation) .Call(wrap__Experiment__get_ge
 Experiment$generation_number <- function() .Call(wrap__Experiment__generation_number, self)
 
 Experiment$population_size <- function(generation) .Call(wrap__Experiment__population_size, self, generation)
+
+Experiment$load_data <- function(x_path, y_path) .Call(wrap__Experiment__load_data, self, x_path, y_path)
 
 #' @rdname Experiment
 #' @usage NULL

@@ -3,10 +3,10 @@ general:
   algo: ga
   thread_number: 4
   log_level: debug
-  language: ter,bin
-  data_type: log,raw
+  language: ter,bin,ratio,pow2               # possible values are ter,bin,ratio,pow2, see README.md for detail. A comma separated list (no spaces) is accepted, which means the initial population will be split 
+  data_type: raw,prev,log
   data_type_minimum: 1e-5 # this is only usefull for data_type prevalence (where it is a threshold) or log (where it replaces values below)
-  fit: specificity
+  fit: auc
   k_penalty: 0.01
   overfit_penalty: 0.0 # setting this will trigger the removal of a random fold in the train population (change fold_number in CV to ajust)
   fr_penalty: 0.5
@@ -20,10 +20,14 @@ data:
   y: "Ytrain.tsv"
   Xtest: "Xtest.tsv"
   ytest: "Ytest.tsv"
-  pvalue_method: wilcoxon
+  feature_selection_method: wilcoxon
   feature_minimal_prevalence_pct: 10 # per class, e.g. if any of the class reaches this level
   feature_maximal_pvalue: 0.01 # feature with differences less significant than this will be removed
   feature_minimal_feature_value: 0.0001
+  feature_minimal_log_abs_bayes_factor: 2
+  classes:
+    - "healthy"
+    - "cirrhosis"
 
 ga:
   population_size: 1000
@@ -40,3 +44,11 @@ ga:
   mutation_non_null_chance_pct: 20
   feature_importance_permutations: 100
   keep_all_generation: false
+
+beam:
+  max_nb_of_models: 5000 # the maximum number of models per generation 
+  kmin: 1 # the number of variables used in the initial population
+  kmax: 50 # the maximum number of variables to considere in a single model, the variable count limit for beam algorithm
+  nb_very_best_models: 50 # the number of best models where all variables are directly kept for next epoch (recommanded : 1% of max_nb_of_models)
+  nb_best_models: 500 # the number of used best models to calculate the feature importance (recommanded : 10% of max_nb_of_models)
+  features_importance_minimal_pct: 10 # the minimum prevalence percentage among best_models required for a variable to be kept for next epoch

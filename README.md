@@ -25,7 +25,7 @@ However, it is possible to get it as an R object with `param$get()`.
 ```R
 library(gpredomicsR)
 running_flag <- RunningFlag$new()
-param <- Param$get("param.yaml")
+param <- Param$load("param.yaml")
 rparam <- param$get()
 ```
 
@@ -37,9 +37,9 @@ Several functions allow to get specific information, such as the number of gener
 
 ```R
 # Create an experiment and run the genetic algorithm
-exp <- ga(param, running_flag)
+exp <- fit(param, running_flag)
 exp$generation_number()
-exp$get_individual(99,0)
+exp$individual(99,0)
 exp.results <- parseExperiment(exp)
 ```
 
@@ -61,6 +61,10 @@ NB3: once created the verbosity level can be adjusted with : `glog$set_level("wa
 
 *NEW*
 
-- you may directly set a logger at a correct level `glog$level("trace")`
+- you may directly set a logger at a correct level `glog$set_level("trace")`
 - you may use `ga/ga2/ga_no_overfit/ga2_no_overfit` sub algorithms of the `ga` family
 - you may get all individuals at once in a a generation with `pop$get_all_individuals(98)` (which will give you a Dataframe of all the individuals) 
+
+## GPU usage
+
+You should have GPU set to true (directly in param.yaml or with `param$set_bool("gpu",TRUE)`). You may need additional libraries (Apple Silicons are natively supported by WGPU which gpredomics is using, Linux needs Vulkan libraries, with drivers, see gpredomics README.md for details).
