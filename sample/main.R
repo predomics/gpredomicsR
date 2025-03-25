@@ -58,7 +58,7 @@ table(populationGet_X("language")(pop.final))
 # 390     514 
 table(populationGet_X("data_type")(pop.final))
 # Log Prevalence        Raw 
-# 396        243        265 
+# 384        232        293 
 
 
 # the best models
@@ -98,7 +98,7 @@ ggpairs(df, columns = c("k", "fit", "data_type", "accuracy"),
 indexes <- unique(populationGet_X("indexes")(pop.fbm))
 
 # get the feature model prevalence matrix
-dense_matrix <- listOfModelsToDenseCoefMatrix(X = train_data$X, y = train_data$y, pop.fbm)
+dense_matrix <- listOfModelsToDenseCoefMatrix(X = exp$data$train$X, y = exp$data$train$y, pop.fbm)
 print(dense_matrix)
 
 mod <- pop.fbm[[1]]
@@ -107,7 +107,21 @@ printy(pop.fbm)
 printy(exp)
 
 
-plotAbundanceByClass(features = rownames(dense_matrix), X = train_data$X, y = train_data$y, log_scale = FALSE)
+plotAbundanceByClass(features = rownames(dense_matrix), X = exp$data$train$X, y = exp$data$train$y, log_scale = FALSE)
+plotPrevalence(features = rownames(dense_matrix), X = exp$data$train$X, y = exp$data$train$y)
+
+printy(mod)
+
+computeClass <- function(X, y, mod){
+  # compute the class of the model
+  # X: the data
+  # y: the labels
+  # model: the model
+  # return: the class of the model
+  y_pred <- predict(mod, X)
+  y_pred <- ifelse(y_pred > 0.5, 1, 0)
+  return(y_pred)
+}
 
 
 

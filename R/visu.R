@@ -293,6 +293,85 @@ printy <- function(obj) {
   }
 }
 
+
+
+#' Plot Feature Coefficients Across Models
+#'
+#' This function visualizes the coefficients of features across different models
+#' in a heatmap. The colors represent positive, negative, and zero coefficients.
+#' It supports sorting features, rotating axis labels, and using log scaling.
+#'
+#' @param feat.model.coeffs A numeric matrix or data frame where **rows** represent
+#'   features, **columns** represent models, and values represent the feature coefficients.
+#' @param topdown Logical; if `TRUE`, features are sorted from **top to bottom** (default: `TRUE`).
+#' @param main A string for the **title** of the plot (default: `""`).
+#' @param col A vector of **colors** for the heatmap (default: `c("deepskyblue1", "white", "firebrick1")`).
+#' @param vertical.label Logical; if `TRUE`, feature labels are **rotated vertically** (default: `TRUE`).
+#' @param log.scale Logical; if `TRUE`, **log transformation** is applied to the coefficients (default: `FALSE`).
+#'
+#' @return A `ggplot2` object displaying the heatmap of feature coefficients.
+#'
+#' @examples
+#' # Example usage
+#' features <- c("feature1", "feature2", "feature3")
+#' models <- c("model1", "model2", "model3")
+#' coeffs <- matrix(runif(9, -1, 1), nrow = 3, ncol = 3)
+#' rownames(coeffs) <- features
+#' colnames(coeffs) <- models
+#'
+#' # Plot feature model coefficients
+#' plotFeatureModelCoeffs(coeffs, main = "Feature Coefficients Heatmap", log.scale = TRUE)
+#'
+#' @author Edi Prifti (IRD)
+#' @import ggplot2
+#' @importFrom reshape2 melt
+#' @export
+plotFeatureModelCoeffs <- function(feat.model.coeffs, topdown = TRUE, main = "", 
+                                   col = c("deepskyblue1", "white", "firebrick1"), 
+                                   vertical.label = TRUE, log.scale = FALSE) {
+  
+  # Ensure input is a matrix
+  if (!is.matrix(feat.model.coeffs)) {
+    feat.model.coeffs <- as.matrix(feat.model.coeffs)
+  }
+  
+  # Handle log scale transformation (avoid log(0))
+  if (log.scale) {
+    feat.model.coeffs <- sign(feat.model.coeffs) * log1p(abs(feat.model.coeffs))
+  }
+  
+  # Sort features in top-down order if required
+  if (topdown) {
+    feat.model.coeffs <- feat.model.coeffs[nrow(feat.model.coeffs):1, , drop = FALSE]
+  }
+  
+  # Convert matrix to long format for ggplot
+  data.m <- reshape2::melt(feat.model.coeffs)
+  colnames(data.m) <- c("feature", "model", "value")
+  
+  # Adjust color mapping based on available coefficient values
+  unique_vals <- unique(data.m$value)
+  if (length(unique_vals) < 3) {
+    col <- col[c(-1, 0, 1) %in% unique_vals]
+  }
+  
+  # Create heatmap plot
+  p <- ggplot(data.m, aes(x = model, y = feature, fill = value)) + 
+    geom_tile(color = "darkgray") + 
+    scale_fill_gradientn(colors = col) +
+    theme_bw() +
+    ggtitle(main) +
+    theme(
+      legend.position = "none",
+      axis.text = element_text(size = 9),
+      axis.text.x = if (vertical.label) element_text(angle = 90, hjust = 1) else element_text(angle = 0)
+    )
+  
+  return(p)
+}
+
+
+
 #' Analyze Features in a Population of Models
 #'
 #' This function analyzes features in a population of models, allowing for the
@@ -751,11 +830,191 @@ plotAbundanceByClass <- function(features, X, y, topdown = TRUE,
     ggtitle(main)
   
   if (log_scale) {
-    p <- p + scale_y_log10()
+    p <- p + scale_y_log10() + ylab("abundance (log10)")
   }
   
   p <- p + annotate("text", y = max(dat.reshape$abundance, na.rm = TRUE) * 1.1, 
                     x = 1:length(qvals), label = qvals, color = "gray", size = 7)
+  
+  return(p)
+}
+
+
+#' Plot Feature Coefficients Across Models
+#'
+#' This function visualizes the coefficients of features across different models
+#' in a heatmap. It supports sorting features, rotating labels, and displaying 
+#' coefficients in **log scale** when needed.
+#'
+#' @param feat.model.coeffs A numeric **matrix** where rows are **features**, 
+#'   columns are **models**, and values represent the coefficients.
+#' @param topdown Logical; if `TRUE`, features are sorted from **top to bottom** (default: `TRUE`).
+#' @param main A string for the **title** of the plot (default: `""`).
+#' @param col A vector of **colors** for the heatmap (default: `c("deepskyblue1", "white", "firebrick1")`).
+#' @param vertical.label Logical; if `TRUE`, feature labels are **rotated vertically** (default: `TRUE`).
+#' @param log.scale Logical; if `TRUE`, **log transformation** is applied to coefficients (default: `FALSE`).
+#'
+#' @return A `ggplot2` object displaying the heatmap of feature coefficients.
+#'
+#' @examples
+#' # Example usage
+#' features <- c("feature1", "feature2", "feature3")
+#' models <- c("model1", "model2", "model3")
+#' coeffs <- matrix(runif(9, -1, 1), nrow = 3, ncol = 3)
+#' rownames(coeffs) <- features
+#' colnames(coeffs) <- models
+#'
+#' # Plot feature model coefficients
+#' plotFeatureModelCoeffs(coeffs, main = "Feature Coefficients Heatmap", log.scale = TRUE)
+#'
+#' @author Edi Prifti (IRD)
+#' @import ggplot2
+#' @importFrom reshape2 melt
+#' @export
+plotFeatureModelCoeffs <- function(feat.model.coeffs, topdown = TRUE, main = "", 
+                                   col = c("deepskyblue1", "white", "firebrick1"), 
+                                   vertical.label = TRUE, log.scale = FALSE) {
+  
+  # Ensure input is a matrix
+  if (!is.matrix(feat.model.coeffs)) {
+    feat.model.coeffs <- as.matrix(feat.model.coeffs)
+  }
+  
+  # Handle log scale transformation (avoid log(0))
+  if (log.scale) {
+    feat.model.coeffs <- sign(feat.model.coeffs) * log1p(abs(feat.model.coeffs))
+  }
+  
+  # Sort features in top-down order if required
+  if (topdown) {
+    feat.model.coeffs <- feat.model.coeffs[nrow(feat.model.coeffs):1, , drop = FALSE]
+  }
+  
+  # Convert matrix to long format for ggplot
+  data.m <- reshape2::melt(feat.model.coeffs)
+  colnames(data.m) <- c("feature", "model", "value")
+  
+  # Adjust color mapping based on available coefficient values
+  unique_vals <- unique(data.m$value)
+  if (length(unique_vals) < 3) {
+    col <- col[c(-1, 0, 1) %in% unique_vals]
+  }
+  
+  # Create heatmap plot
+  p <- ggplot(data.m, aes(x = model, y = feature, fill = value)) + 
+    geom_tile(color = "darkgray") + 
+    theme_bw() +
+    ggtitle(main) +
+    scale_fill_gradientn(colors = col) +
+    theme(
+      legend.position = "right",
+      axis.text = element_text(size = 9),
+      axis.text.x = if (vertical.label) element_text(angle = 90, hjust = 1) else element_text(angle = 0)
+    )
+  
+  # Apply log scale on x-axis if enabled
+  if (log.scale) {
+    p <- p + scale_fill_viridis_c(option = "C", trans = "log10")  # Adjust fill colors for log
+  }
+  
+  return(p)
+}
+
+
+#' Plot Feature Prevalence and Enrichment
+#'
+#' This function visualizes the prevalence of features across different groups
+#' in a dataset and computes feature enrichment, providing optional statistical 
+#' tests for enrichment. If enrichment data is available, significance markers are added.
+#'
+#' @param features A character vector of feature names to be plotted.
+#' @param X A data matrix or data frame where **rows = features** and **columns = samples**.
+#' @param y A vector of class labels (e.g., `1` and `-1` for binary classification) 
+#'   corresponding to the columns in `X`.
+#' @param topdown Logical; if `TRUE`, features are displayed in descending order (default: `TRUE`).
+#' @param main A string for the title of the plot.
+#' @param plot Logical; if `TRUE`, the function **displays the plot**. If `FALSE`, 
+#'   it **returns the enrichment statistics** instead of plotting.
+#' @param col.pt Colors for points in the plot (default: `c("deepskyblue4", "firebrick4")`).
+#' @param col.bg Colors for bars in the plot (default: `c("deepskyblue1", "firebrick1")`).
+#' @param zero.value The value treated as zero in prevalence calculations (default: `0`).
+#'
+#' @return If `plot = TRUE`, returns a `ggplot2` object displaying feature prevalence.  
+#' If `plot = FALSE`, returns the **enrichment results** (statistical test output).
+#'
+#' @examples
+#' features <- c("feature1", "feature2", "feature3")
+#' X <- matrix(sample(0:1, 300, replace = TRUE), nrow = 3)
+#' rownames(X) <- features
+#' y <- sample(c(1, -1), 100, replace = TRUE)
+#'
+#' # Plot feature prevalence
+#' plotPrevalence(features, X, y, main = "Feature Prevalence Plot")
+#'
+#' # Get enrichment statistics without plotting
+#' plotPrevalence(features, X, y, plot = FALSE)
+#'
+#' @author Edi Prifti (IRD)
+#' @export
+plotPrevalence <- function(features, X, y, topdown = TRUE, main = "", plot = TRUE, 
+                           col.pt = c("deepskyblue4", "firebrick4"), 
+                           col.bg = c("deepskyblue1", "firebrick1"),
+                           zero.value = 0) {
+  
+  # Compute feature prevalence
+  v.prop <- getFeaturePrevalence(features = features, X = X, y = y, prop = TRUE, zero.value = zero.value)
+  v.card <- getFeaturePrevalence(features = features, X = X, y = y, prop = FALSE, zero.value = zero.value)
+  
+  # Compute enrichment
+  prev.enrichment <- computeCardEnrichment(v.card.mat = do.call(rbind, v.card), y = y)
+  
+  # Internal function to reshape data
+  meltScoreList <- function(v, topdown = TRUE) {
+    if (!is.list(v)) stop("meltScoreList: Input should be a list of vectors.")
+    
+    melted_data <- do.call(rbind, lapply(seq_along(v), function(i) {
+      data.frame(feature = names(v[[i]]), 
+                 prevalence = as.numeric(v[[i]]), 
+                 group = names(v)[i], 
+                 stringsAsFactors = FALSE)
+    }))
+    
+    # Arrange feature order
+    feature_order <- if (topdown) rev(names(v$all)) else names(v$all)
+    melted_data$feature <- factor(melted_data$feature, levels = feature_order)
+    
+    # Invert prevalence for class "-1"
+    melted_data$prevalence[melted_data$group == "-1"] <- 
+      -melted_data$prevalence[melted_data$group == "-1"]
+    
+    return(melted_data)
+  }
+  
+  # Prepare data for plotting
+  v.prop.melt <- meltScoreList(v = v.prop, topdown = topdown)
+  v.prop.melt$prevalence <- v.prop.melt$prevalence * 100  # Convert to percentage
+  
+  if (!plot) return(prev.enrichment)
+  
+  # Generate the plot
+  p <- ggplot(v.prop.melt, aes(x = feature, y = prevalence, fill = group)) + 
+    geom_bar(data = subset(v.prop.melt, group == "all"), stat = "identity") + 
+    coord_flip() + 
+    geom_point(data = subset(v.prop.melt, group %in% c("-1", "1")), 
+               aes(x = feature, y = prevalence, color = group, shape = group)) + 
+    scale_color_manual(values = c("all" = "gray90", "-1" = col.pt[1], "1" = col.pt[2])) +
+    scale_fill_manual(values = c("all" = "gray90", "-1" = col.bg[1], "1" = col.bg[2])) +
+    scale_shape_manual(values = c(25, 24)) + 
+    theme_bw() + 
+    theme(legend.position = "none", axis.text = element_text(size = 9)) + 
+    ggtitle(main)
+  
+  # Add significance markers if available
+  if (!is.null(prev.enrichment$chisq.q)) {
+    qvals <- ifelse(prev.enrichment$chisq.q < 0.05, "*", "")
+    p <- p + annotate("text", y = rep(101, length(qvals)), 
+                      x = seq_along(qvals) - 0.3, label = qvals, color = "gray", size = 7)
+  }
   
   return(p)
 }

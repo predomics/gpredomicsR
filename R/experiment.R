@@ -85,6 +85,37 @@ runExperiment <- function(param.path = "sample/param.yaml") {
     execTime = as.numeric(Sys.time() - startingTime, units = "mins")
   )
   
+  # fix the class
+  
+  # Handle raw class conversion
+  if (is.raw(experiment$data$train$y)) {
+    experiment$data$train$y <- as.integer(experiment$data$train$y)  # Convert raw to numeric
+  }
+  # Ensure it's a vector
+  if (!is.vector(experiment$data$train$y)) {
+    experiment$data$train$y <- as.vector(experiment$data$train$y)  # Force conversion
+  }
+  # Convert binary numeric to factor
+  unique_vals <- unique(experiment$data$train$y)
+  if (length(experiment$data$train$y) == 2) {
+    experiment$data$train$y <- as.factor(experiment$data$train$y)
+  }
+  
+  
+  # Handle raw class conversion
+  if (is.raw(experiment$data$test$y)) {
+    experiment$data$test$y <- as.integer(experiment$data$test$y)  # Convert raw to numeric
+  }
+  # Ensure it's a vector
+  if (!is.vector(experiment$data$test$y)) {
+    experiment$data$test$y <- as.vector(experiment$data$test$y)  # Force conversion
+  }
+  # Convert binary numeric to factor
+  unique_vals <- unique(experiment$data$test$y)
+  if (length(experiment$data$test$y) == 2) {
+    experiment$data$test$y <- as.factor(experiment$data$test$y)
+  }
+  
   return(experiment)
 }
 
