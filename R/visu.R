@@ -757,7 +757,7 @@ makeFeatureModelPrevalenceNetworkMiic <- function(pop.noz,
 #' @import ggplot2
 #' @import tidyr
 #' @export
-plotAbundanceByClass <- function(features, X, y, topdown = TRUE, 
+plotAbundance <- function(features, X, y, topdown = TRUE, 
                                  main = "", plot = TRUE, log_scale = FALSE,
                                  col.pt = c("deepskyblue4", "firebrick4"), 
                                  col.bg = c("deepskyblue1", "firebrick1")) {
@@ -1000,10 +1000,10 @@ plotPrevalence <- function(features, X, y, topdown = TRUE, main = "", plot = TRU
   p <- ggplot(v.prop.melt, aes(x = feature, y = prevalence, fill = group)) + 
     geom_bar(data = subset(v.prop.melt, group == "all"), stat = "identity") + 
     coord_flip() + 
-    geom_point(data = subset(v.prop.melt, group %in% c("-1", "1")), 
+    geom_point(data = subset(v.prop.melt, group %in% c("0", "1")), 
                aes(x = feature, y = prevalence, color = group, shape = group)) + 
-    scale_color_manual(values = c("all" = "gray90", "-1" = col.pt[1], "1" = col.pt[2])) +
-    scale_fill_manual(values = c("all" = "gray90", "-1" = col.bg[1], "1" = col.bg[2])) +
+    scale_color_manual(values = c("all" = "gray90", "0" = col.pt[1], "1" = col.pt[2])) +
+    scale_fill_manual(values = c("all" = "gray90", "0" = col.bg[1], "1" = col.bg[2])) +
     scale_shape_manual(values = c(25, 24)) + 
     theme_bw() + 
     theme(legend.position = "none", axis.text = element_text(size = 9)) + 
@@ -1018,3 +1018,260 @@ plotPrevalence <- function(features, X, y, topdown = TRUE, main = "", plot = TRU
   
   return(p)
 }
+
+
+
+#' Plot barcode-style heatmap with ggplot2
+#'
+#' Supports optional filtering of features and samples.
+#'
+#' @param X A numeric matrix (features x samples). Ignored if `data` is provided.
+#' @param y A vector of sample class labels. Ignored if `data` is provided.
+#' @param main Title of the plot.
+#' @param ylabl (Unused).
+#' @param ylabr (Unused).
+#' @param fixed.scale Logical. Use fixed color scale (TRUE) or dynamic log4 scale (FALSE).
+#' @param data Optional. A list containing `X`, `y`, and optionally `classes`.
+#' @param select_features Optional vector of feature names (rownames of X) to display.
+#' @param select_samples Optional vector of sample names (colnames of X) to display.
+#'
+#' @return A ggplot object.
+#'
+#' @import ggplot2
+#' @importFrom tidyr pivot_longer
+#' @importFrom dplyr mutate left_join filter
+#' @importFrom scales rescale squish log_trans label_number
+#' @export
+plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
+                        fixed.scale = TRUE, data = NULL,
+                        select_features = NULL, select_samples = NULL) {
+  library(ggplot2)
+  library(tidyr)
+  library(dplyr)
+  library(scales)
+  
+  # --- Extract from data object if provided ---
+  if (!is.null(data)) {
+    if (!all(c("X", "y") %in% names(data))) {
+      stop("Data object must contain at least 'X' and 'y'")
+    }
+    X <- data$X
+    y <- data$y
+    
+    if (is.raw(y)) y <- as.integer(y)
+    if (!is.vector(y)) y <- as.vector(y)
+    y <- as.integer(y)
+    y <- factor(y)
+    
+    if (!is.null(data$classes)) {
+      class_labels <- as.character(data$classes)
+      if (length(class_labels) < length(levels(y))) {
+        stop("Not enough class labels provided for the unique values in y.")
+      }
+      levels(y) <- class_labels
+    }
+  } else {
+    if (is.raw(y)) y <- as.integer(y)
+    if (!is.vector(y)) y <- as.vector(y)
+    y <- as.integer(y)
+    y <- factor(y)
+  }
+  
+  if (is.null(X) || is.null(y)) stop("Both X and y must be provided.")
+  
+  # --- Apply feature/sample selection ---
+  if (!is.null(select_features)) {
+    X <- X[rownames(X) %in% select_features, , drop = FALSE]
+  }
+  if (!is.null(select_samples)) {
+    X <- X[, colnames(X) %in% select_samples, drop = FALSE]
+    y <- y[colnames(X) %in% select_samples]
+  }
+  
+  # --- Validation ---
+  if (ncol(X) != length(y)) {
+    stop("Length of y must match number of columns in X after selection.")
+  }
+  
+  if (is.null(colnames(X))) colnames(X) <- paste0("Sample", seq_len(ncol(X)))
+  if (is.null(rownames(X))) rownames(X) <- paste0("Feature", seq_len(nrow(X)))
+  
+  feature_levels <- rownames(X)
+  sample_levels <- colnames(X)
+  
+  # --- Reshape data ---
+  df_long <- as.data.frame(X) %>%
+    mutate(Feature = rownames(X)) %>%
+    pivot_longer(cols = -Feature, names_to = "Sample", values_to = "value")
+  
+  df_long$Group <- y[match(df_long$Sample, colnames(X))]
+  
+  df_long <- df_long %>%
+    filter(!is.na(Group)) %>%
+    mutate(
+      Feature = factor(Feature, levels = rev(feature_levels)),
+      Sample = factor(Sample, levels = sample_levels),
+      Group = factor(Group, levels = levels(y))
+    )
+  
+  df_long$value[df_long$value == 0] <- NA
+  
+  # --- Color scale ---
+  if (fixed.scale) {
+    breaks <- c(1e-07, 4e-07, 1.6e-06, 6.4e-06,
+                2.56e-05, 0.0001024, 0.0004096, 0.0016384)
+    colors <- c("white", "deepskyblue", "blue", "green3", "yellow",
+                "orange", "red", "orangered2", "darkred")
+    
+    fill_scale <- scale_fill_gradientn(
+      colors = colors,
+      values = rescale(breaks),
+      limits = range(breaks),
+      oob = squish,
+      na.value = "white",
+      breaks = breaks,
+      labels = label_number(format = "e", accuracy = 1),
+      trans = log_trans(base = 4),
+      guide = guide_colorbar(title = "Value (log₄)")
+    )
+  } else {
+    non_zero_vals <- df_long$value[!is.na(df_long$value)]
+    if (length(non_zero_vals) == 0) {
+      stop("All values are zero; cannot compute dynamic log scale.")
+    }
+    
+    min_val <- min(non_zero_vals)
+    max_val <- max(non_zero_vals)
+    log_min <- floor(log(min_val, base = 4))
+    log_max <- ceiling(log(max_val, base = 4))
+    breaks <- 4 ^ seq(log_min, log_max)
+    
+    fill_scale <- scale_fill_gradientn(
+      colors = colorRampPalette(c("white", "blue", "green", "yellow", "red", "darkred"))(length(breaks) - 1),
+      trans = log_trans(base = 4),
+      breaks = breaks,
+      labels = label_number(format = "e", accuracy = 1),
+      limits = c(min_val, max_val),
+      oob = squish,
+      na.value = "white",
+      guide = guide_colorbar(title = "Value (log₄)")
+    )
+  }
+  
+  # --- Final plot ---
+  p <- ggplot(df_long, aes(x = Sample, y = Feature, fill = value)) +
+    geom_tile() +
+    facet_wrap(~Group, scales = "free_x") +
+    fill_scale +
+    labs(title = main, x = "", y = "") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      panel.grid = element_blank(),
+      strip.text = element_text(size = 12),
+      axis.text = element_text(size = 10)
+    )
+  
+  return(p)
+}
+
+
+#' Plot a Heatmap of a Model Population with Signed Color Gradient
+#'
+#' This function extracts a model population from a `gpredomics` experiment object,
+#' optionally selects the top-performing models, computes the dense coefficient matrix,
+#' and visualizes it as a clustered heatmap. The color scale is centered on zero,
+#' with negative values in red, positive values in green, and zero in white.
+#'
+#' @param exp A `gpredomics` experiment object containing the model collection and training data.
+#' @param pop_index An integer specifying which population index to use from `exp$model_collection`
+#'   (default is the last population).
+#' @param focus_fbm Logical. If TRUE (default), selects the top models using `selectBestPopulation()`.
+#'   If FALSE, uses the full population without filtering.
+#' @param score A character string indicating which score to use for model selection (default is `"fit"`).
+#' @param p A numeric value between 0 and 1 indicating the proportion of top models to retain (default is `0.05`).
+#' @param clustering_distance Distance metric used for hierarchical clustering (`"euclidean"` by default).
+#' @param clustering_method Method used for clustering (`"complete"` by default).
+#' @param scale Scaling method passed to `pheatmap` (`"none"` by default).
+#' @param ... Additional arguments passed to `pheatmap()` (e.g., `annotation_col`, `fontsize`, etc.).
+#'
+#' @return Invisibly returns the output of `pheatmap()`. The heatmap is displayed as a side effect.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Plot heatmap using filtered best models
+#'   plot_population_heatmap(exp)
+#'
+#'   # Plot heatmap using all models from generation 5
+#'   plot_population_heatmap(exp, pop_index = 5, focus_fbm = FALSE)
+#' }
+plot_population_heatmap <- function(exp,
+                                    pop_index = length(exp$model_collection),
+                                    focus_fbm = TRUE,
+                                    score = "fit",
+                                    p = 0.05,
+                                    clustering_distance = "euclidean",
+                                    clustering_method = "complete",
+                                    scale = "none",
+                                    ...) {
+  library(pheatmap)
+  
+  # Step 1: Extract population
+  if (pop_index < 1 || pop_index > length(exp$model_collection)) {
+    stop("Invalid pop_index: must be between 1 and ", length(exp$model_collection))
+  }
+  
+  pop <- exp$model_collection[[pop_index]]
+  
+  # Step 2: Optionally select best models
+  list.models <- if (focus_fbm) {
+    selectBestPopulation(pop, score = score, p = p)
+  } else {
+    pop
+  }
+  
+  # Step 3: Compute dense coefficient matrix
+  dense_matrix <- listOfModelsToDenseCoefMatrix(
+    X = exp$data$train$X,
+    y = exp$data$train$y,
+    list.models = list.models
+  )
+  
+  # Step 4: Check value range
+  vmin <- min(dense_matrix, na.rm = TRUE)
+  vmax <- max(dense_matrix, na.rm = TRUE)
+  
+  if (vmin == vmax) {
+    warning("Matrix has constant values — slight jitter added to avoid error.")
+    vmin <- vmin - 1e-6
+    vmax <- vmax + 1e-6
+  }
+  
+  # Step 5: Compute color breaks and palette
+  n_colors <- max(20, min(100, nrow(dense_matrix) * ncol(dense_matrix)))
+  neg_breaks <- seq(vmin, 0, length.out = ceiling(n_colors / 2))
+  pos_breaks <- seq(0, vmax, length.out = floor(n_colors / 2) + 1)
+  breaks <- unique(c(neg_breaks, pos_breaks[-1]))
+  
+  if (length(breaks) < 2) {
+    stop("Breaks could not be computed correctly. Matrix may have insufficient variation.")
+  }
+  
+  neg_colors <- colorRampPalette(c("darkred", "white"))(sum(breaks < 0))
+  pos_colors <- colorRampPalette(c("white", "darkgreen"))(sum(breaks > 0))
+  custom_colors <- c(neg_colors, pos_colors)
+  
+  # Step 6: Plot
+  res <- pheatmap(dense_matrix,
+                  color = custom_colors,
+                  breaks = breaks,
+                  clustering_distance_rows = clustering_distance,
+                  clustering_distance_cols = clustering_distance,
+                  clustering_method = clustering_method,
+                  scale = scale,
+                  ...)
+  
+  invisible(res)
+}
+
