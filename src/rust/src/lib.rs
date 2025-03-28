@@ -437,6 +437,14 @@ impl Individual {
         self.intern.evaluate(&data.intern).into_robj()
     }
 
+    /// Use individual on a data object to provide predicted class and score
+    /// @export
+    pub fn evaluate_class_and_score(&self, data: &Data) -> Robj {
+        let (classes, scores) = self.intern.evaluate_class_and_score(&data.intern);
+        
+        list!(class=(classes.iter().map(|x| {*x as i32})).collect::<Vec<i32>>().into_robj(), score=scores.into_robj()).into()
+    }
+
     /// Return a list of predicted class for the samples in the data
     /// @export
     pub fn predict(&self, data: &Data) -> Robj {

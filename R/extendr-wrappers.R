@@ -120,6 +120,8 @@ Individual$compute_metrics <- function(data) invisible(.Call(wrap__Individual__c
 
 Individual$evaluate <- function(data) .Call(wrap__Individual__evaluate, self, data)
 
+Individual$evaluate_class_and_score <- function(data) .Call(wrap__Individual__evaluate_class_and_score, self, data)
+
 Individual$predict <- function(data) .Call(wrap__Individual__predict, self, data)
 
 Individual$to_string <- function() .Call(wrap__Individual__to_string, self)

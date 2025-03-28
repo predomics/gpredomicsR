@@ -449,8 +449,8 @@ dependencies = [
 
 [[package]]
 name = "gpredomics"
-version = "0.5.5"
-source = "git+https://github.com/predomics/gpredomics.git?tag=v0.5.5#4f705aef80293f3c7258fbcf2e20c03cdf6718de"
+version = "0.5.6"
+source = "git+https://github.com/predomics/gpredomics.git?tag=v0.5.6#cf2089ee6f40b0c39d04879dab415fa4376da917"
 dependencies = [
  "bincode",
  "bytemuck",
