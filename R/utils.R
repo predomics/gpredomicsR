@@ -626,3 +626,205 @@ filterfeaturesK <- function(data,
 }
 
 
+#' Compute Feature Prevalence in a Dataset
+#'
+#' This function computes the **prevalence of selected features** across the entire dataset 
+#' and, if provided, across different classes.
+#'
+#' @param features A character vector (feature names) or numeric vector (feature indices).
+#' @param X A data matrix or data frame where **rows = features** and **columns = samples**.
+#' @param y An optional vector of class labels. If provided, prevalence is computed **per class**.
+#' @param prop Logical; if `TRUE`, prevalence is computed as **proportion** instead of raw counts (default: `TRUE`).
+#' @param zero.value The value considered as **zero** in the dataset (useful for log-transformed data, default: `0`).
+#'
+#' @return A **list** with prevalence values:
+#' - `"all"`: Prevalence in the entire dataset.
+#' - `"<class_label>"`: Prevalence per class if `y` is provided.
+#'
+#' @examples
+#' features <- c("gene1", "gene2", "gene3")
+#' X <- matrix(sample(0:1, 300, replace = TRUE), nrow = 3)
+#' rownames(X) <- features
+#' y <- sample(c("A", "B"), 100, replace = TRUE)
+#'
+#' # Compute prevalence in full dataset
+#' getFeaturePrevalence(features, X)
+#'
+#' # Compute prevalence per class
+#' getFeaturePrevalence(features, X, y)
+#'
+#' @author Edi Prifti (IRD)
+#' @export
+getFeaturePrevalence <- function(features, X, y = NULL, prop = TRUE, zero.value = 0) {
+  
+  # Ensure feature names exist in dataset
+  if (is.character(features)) {
+    ind <- match(features, rownames(X))
+    if (any(is.na(ind))) {
+      stop(paste("getFeaturePrevalence: Some features are not found in X:", 
+                 paste(features[is.na(ind)], collapse = ", ")))
+    }
+  } else if (is.numeric(features)) {
+    # Ensure indices are within bounds
+    if (any(features > nrow(X))) {
+      stop("getFeaturePrevalence: Some feature indices are out of range.")
+    }
+    ind <- features
+  } else {
+    stop("getFeaturePrevalence: 'features' must be character (names) or numeric (indices).")
+  }
+  
+  # Extract relevant feature data
+  data <- if (ncol(X) == 1) as.matrix(X[ind, ]) else X[ind, , drop = FALSE]
+  
+  # Ensure features are in the correct shape
+  if (length(features) == 1) {
+    data <- t(as.matrix(data))
+    rownames(data) <- features
+  }
+  
+  # Compute prevalence in entire dataset
+  prevalence_all <- rowSums(data != zero.value, na.rm = TRUE)
+  if (prop) prevalence_all <- prevalence_all / ncol(data)
+  
+  # Store results
+  prevalence_results <- list("all" = prevalence_all)
+  
+  # Compute prevalence for each class
+  if (!is.null(y)) {
+    class_levels <- unique(y)
+    for (class_label in class_levels) {
+      class_indices <- which(y == class_label)
+      if (length(class_indices) == 0) {
+        prevalence_class <- rep(0, length(features))
+      } else {
+        prevalence_class <- rowSums(data[, class_indices, drop = FALSE] != zero.value, na.rm = TRUE)
+        if (prop) prevalence_class <- prevalence_class / length(class_indices)
+      }
+      prevalence_results[[as.character(class_label)]] <- prevalence_class
+    }
+  }
+  
+  return(prevalence_results)
+}
+
+
+#' Compute Feature Enrichment Using Chi-Square Test
+#'
+#' This function computes **feature enrichment statistics** for a **two-class** vector 
+#' using **Chi-Square tests**. It evaluates whether the **cardinality** of a feature 
+#' (presence/absence) is significantly associated with class labels.
+#'
+#' @param v.card.mat A **matrix or data frame**, where **columns = features** and 
+#'   **rows = classes**, indicating the count of non-zero occurrences in each class.
+#' @param y A **vector of class labels** (binary classification) corresponding to the samples.
+#'
+#' @return A **list** containing:
+#' - `$card.all` : Class sample sizes
+#' - `$chisq.p`  : **Chi-Square p-values** for feature-class associations
+#' - `$chisq.q`  : **Adjusted p-values** (Bonferroni correction)
+#' - `$v.card.mat` : The original input matrix or data frame (converted if necessary)
+#' - `$y` : The class labels
+#'
+#' @examples
+#' v.card.mat <- matrix(c(30, 50, 20, 60), nrow = 2, byrow = TRUE)
+#' rownames(v.card.mat) <- c("class1", "class2")
+#' colnames(v.card.mat) <- c("feature1", "feature2")
+#' y <- c(rep(1, 50), rep(0, 50))  # Binary class labels
+#'
+#' computeCardEnrichment(v.card.mat, y)
+#'
+#' @export
+computeCardEnrichment <- function(v.card.mat, y) {
+  
+  # ✅ Fix for raw class issue: Convert to integer if y is raw
+  if (is.raw(y)) {
+    y <- as.integer(y)  # Convert raw to numeric
+  }
+  
+  # ✅ Ensure 'y' is a factor for classification
+  if (!is.factor(y)) {
+    unique_vals <- unique(y)
+    
+    # If exactly 2 unique values and numeric, convert to factor
+    if (length(unique_vals) == 2 && is.numeric(y)) {
+      y <- factor(y, levels = unique_vals)
+    }
+  }
+  
+  # ✅ Validate inputs
+  if (is.null(y)) stop("computeCardEnrichment: 'y' cannot be NULL.")
+  if (!is.matrix(v.card.mat) && !is.data.frame(v.card.mat)) {
+    stop("computeCardEnrichment: 'v.card.mat' must be a matrix or data frame.")
+  }
+  
+  # ✅ Convert matrix to data frame if necessary
+  if (is.matrix(v.card.mat)) {
+    v.card.mat <- as.data.frame(v.card.mat)
+  }
+  
+  # ✅ Extract class counts from y
+  card.all <- table(y)
+  
+  # ✅ Ensure 'y' has exactly two classes
+  if (length(card.all) != 2) stop("computeCardEnrichment: The number of classes must be exactly 2.")
+  
+  # ✅ Align row names with y labels
+  class_names <- names(card.all)
+  existing_classes <- rownames(v.card.mat)
+  
+  # 🚨 Ensure that missing class names in v.card.mat are added as zero rows
+  missing_classes <- setdiff(class_names, existing_classes)
+  if (length(missing_classes) > 0) {
+    zero_mat <- matrix(0, nrow = length(missing_classes), ncol = ncol(v.card.mat))
+    rownames(zero_mat) <- missing_classes
+    colnames(zero_mat) <- colnames(v.card.mat)
+    
+    v.card.mat <- rbind(v.card.mat, zero_mat)  # Add missing classes as zero rows
+  }
+  
+  # ✅ Subset the matrix to include only relevant classes (now correctly aligned)
+  v.card.mat <- v.card.mat[class_names, , drop = FALSE]
+  
+  # ✅ Compute negative counts (samples NOT containing the feature in each class)
+  dat.negative <- matrix(rep(card.all, ncol(v.card.mat)), nrow = 2, byrow = TRUE) - v.card.mat
+  rownames(dat.negative) <- paste0(rownames(v.card.mat), "_missing")
+  
+  # ✅ Initialize results
+  chisq.p <- numeric(ncol(v.card.mat))
+  chisq.mat.list <- vector("list", ncol(v.card.mat))
+  
+  # ✅ Compute Chi-Square p-values for each feature
+  for (i in seq_len(ncol(v.card.mat))) {
+    chisq.mat <- rbind(v.card.mat[, i], dat.negative[, i])
+    rownames(chisq.mat) <- c("present", "missing")
+    
+    chisq.mat.list[[i]] <- chisq.mat
+    chisq.p[i] <- tryCatch(
+      chisq.test(chisq.mat)$p.value,
+      warning = function(w) NA, 
+      error = function(e) NA
+    )
+  }
+  
+  # ✅ Assign names to results
+  names(chisq.p) <- colnames(v.card.mat)
+  
+  # ✅ Handle NaN values (replace with max p-value)
+  chisq.p[is.na(chisq.p)] <- 1
+  
+  # ✅ Apply Bonferroni correction
+  chisq.q <- p.adjust(chisq.p, method = "bonferroni")
+  
+  # ✅ Return results as a list
+  return(list(
+    card.all = card.all,
+    chisq.p = chisq.p,
+    chisq.q = chisq.q,
+    v.card.mat = v.card.mat,  # Return the converted data
+    y = y
+  ))
+}
+
+
+

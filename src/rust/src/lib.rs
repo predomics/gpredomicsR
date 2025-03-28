@@ -162,6 +162,16 @@ impl Param {
             ("keep_all_generations", Robj::from(self.intern.ga.keep_all_generations)),
         ]);
 
+        // Convert GA fields
+        let beam = List::from_pairs(vec![
+            ("max_nb_of_models", Robj::from(self.intern.beam.max_nb_of_models)),
+            ("kmin", Robj::from(self.intern.beam.kmin)),
+            ("kmax", Robj::from(self.intern.beam.kmax)),
+            ("nb_very_best_models", Robj::from(self.intern.beam.nb_very_best_models)),
+            ("nb_best_models", Robj::from(self.intern.beam.nb_best_models)),
+            ("features_importance_minimal_pct", Robj::from(self.intern.beam.features_importance_minimal_pct)),
+        ]);
+
         // Convert CV fields
         let cv = List::from_pairs(vec![
             ("fold_number", Robj::from(self.intern.cv.fold_number)),
@@ -172,6 +182,7 @@ impl Param {
             ("general", Robj::from(general)),
             ("data", Robj::from(data)),
             ("ga", Robj::from(ga)),
+            ("beam", Robj::from(beam)),
             ("cv", Robj::from(cv)),
         ]);
 
@@ -276,11 +287,11 @@ fn sparse_matrix_to_dataframe(
 /// @export
 fn sparse_vector_to_vector(vector: &HashMap<usize, u8>, length: usize) -> Robj {
     // Create a dense vector initialized with zeros
-    let mut dense_vector: Vec<u8> = vec![0; length];
+    let mut dense_vector: Vec<i32> = vec![0; length];
 
     // Populate the dense vector with non-zero values from the sparse vector
     for (index, value) in vector {
-        dense_vector[*index] = *value;
+        dense_vector[*index] = *value as i32;
     }
 
     // Convert the dense vector to an R object
@@ -313,7 +324,7 @@ impl Data {
         // Convert Data fields to R objects
         let data = List::from_pairs(vec![
             ("X", sparse_matrix_to_dataframe(&self.intern.X, &self.intern.samples, &self.intern.features)),
-            ("y", Robj::from(&self.intern.y)),
+            ("y", Robj::from(self.intern.y.iter().map(|x|{*x as i32}).collect::<Vec<i32>>())),
             ("features", Robj::from(&self.intern.features)),
             ("samples", Robj::from(&self.intern.samples)),
             ("feature_class", sparse_vector_to_vector(&self.intern.feature_class, self.intern.feature_len)),

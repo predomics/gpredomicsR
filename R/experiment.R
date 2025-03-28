@@ -6,6 +6,8 @@
 #'
 #' @param param.path A string specifying the path to the parameter file (YAML format).
 #'   Default is `"sample/param.yaml"`.
+#' @param name an optional string to name the experiment.
+#' @param glog_level the verbose level for glog (default: "debug").
 #'
 #' @return A list containing:
 #' \item{rust}{A list with Rust objects: the experiment, parameters, running flag, and logger.}
@@ -30,7 +32,7 @@
 #'
 #' @author Edi Prifti (IRD)
 #' @export
-runExperiment <- function(param.path = "sample/param.yaml") {
+runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_level = "debug") {
   startingTime <- Sys.time()
   
   # Extract the directory path from param.path
@@ -45,7 +47,7 @@ runExperiment <- function(param.path = "sample/param.yaml") {
   # Try to use an existing global logger, otherwise create a new one
   if (!exists("global_glog", envir = .GlobalEnv)) {
     message("Initializing new GLogger instance...")
-    glog_attempt <- tryCatch(GLogger$new(), error = function(e) NULL)
+    glog_attempt <- tryCatch(GLogger$level(level = glog_level), error = function(e) NULL)
     
     if (!is.null(glog_attempt)) {
       assign("global_glog", glog_attempt, envir = .GlobalEnv)
@@ -66,7 +68,7 @@ runExperiment <- function(param.path = "sample/param.yaml") {
   setwd(dir.path)
   
   # Run the genetic algorithm
-  expRust <- ga(paramRust, running_flag)
+  expRust <- fit(paramRust, running_flag)
   
   # Create experiment structure
   experiment <- list(
@@ -84,6 +86,29 @@ runExperiment <- function(param.path = "sample/param.yaml") {
     model_collection = parseExperiment(expRust),  # Convert Rust pointer to R object
     execTime = as.numeric(Sys.time() - startingTime, units = "mins")
   )
+  
+  # fix the class
+  # for the TRAIN dataset
+  # Ensure it's a vector
+  if (!is.vector(experiment$data$train$y)) {
+    experiment$data$train$y <- as.vector(experiment$data$train$y)  # Force conversion
+  }
+  # Convert binary numeric to factor
+  unique_vals <- unique(experiment$data$train$y)
+  if (length(table(experiment$data$train$y)) == 2) {
+    experiment$data$train$y <- as.factor(experiment$data$train$y)
+  }
+  
+  # same thing for the TEST dataset
+  # Ensure it's a vector
+  if (!is.vector(experiment$data$test$y)) {
+    experiment$data$test$y <- as.vector(experiment$data$test$y)  # Force conversion
+  }
+  # Convert binary numeric to factor
+  unique_vals <- unique(experiment$data$test$y)
+  if (length(table(experiment$data$test$y)) == 2) {
+    experiment$data$test$y <- as.factor(experiment$data$test$y)
+  }
   
   return(experiment)
 }
@@ -133,18 +158,22 @@ analyzeAttributeEvolution <- function(exp, attributes = c("auc", "fit", "k", "ep
     stop("analyzeEvolutionBestModel: Experiment must be a non-empty list.")
   }
   
+  if (!is.list(exp$model_collection) || length(exp$model_collection) == 0) {
+    stop("analyzeEvolutionBestModel: Experiment should contain a model collection (list of populations).")
+  }
+  
   # Ensure all elements of exp are valid populations
-  if (!all(sapply(exp, isPopulation))) {
+  if (!all(sapply(exp$model_collection, isPopulation))) {
     stop("analyzeEvolutionBestModel: Some elements in the experiment are not valid populations.")
   }
   
   # Extract generations
-  generations <- seq_along(exp)  # Assume experiment list is ordered by generation
+  generations <- seq_along(exp$model_collection)  # Assume experiment list is ordered by generation
   
   # Function to extract attribute data from populations
   getAttributeData <- function(attribute) {
-    attribute_data <- lapply(seq_along(exp), function(gen_idx) {
-      pop <- exp[[gen_idx]]
+    attribute_data <- lapply(seq_along(exp$model_collection), function(gen_idx) {
+      pop <- exp$model_collection[[gen_idx]]
       
       # Select best model if needed
       if (best_model) {

@@ -4,11 +4,19 @@
 \alias{runExperiment}
 \title{Run a Predomics Experiment}
 \usage{
-runExperiment(param.path = "sample/param.yaml")
+runExperiment(
+  param.path = "sample/param.yaml",
+  name = "",
+  glog_level = "debug"
+)
 }
 \arguments{
 \item{param.path}{A string specifying the path to the parameter file (YAML format).
 Default is \code{"sample/param.yaml"}.}
+
+\item{name}{an optional string to name the experiment.}
+
+\item{glog_level}{the verbose level for glog (default: "debug").}
 }
 \value{
 A list containing:
