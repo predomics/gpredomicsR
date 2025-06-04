@@ -18,7 +18,7 @@ library(GGally)
 #---------------------------------------------
 
 # Run experiment
-exp <- runExperiment(param.path = "sample/param.yaml")
+system.time(exp <- runExperiment(param.path = "sample/param.yaml"))
 # saveRDS(exp, paste0(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "_exp.rds"))
 
 #---------------------------------------------
@@ -121,6 +121,8 @@ plotBarcode(data = train_data, select_features = rownames(dense_matrix), fixed.s
 # check annotation
 View(annot[annot$msp_name %in% rownames(dense_matrix),])
 
+
+get_taxonomy(msp_names = rownames(dense_matrix), gtdb_version = 220.0, fields = c("phylum","class","order","family","genus","species"))
 
 df %>% 
   ggplot(aes(x = as.character(k), y = fit, fill = language)) +

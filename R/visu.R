@@ -1021,26 +1021,30 @@ plotPrevalence <- function(features, X, y, topdown = TRUE, main = "", plot = TRU
 
 
 
-#' Plot barcode-style heatmap with ggplot2
+#' Plot Barcode-style Heatmap of Feature Abundance
 #'
-#' Supports optional filtering of features and samples.
+#' This function generates a barcode-style heatmap from a feature-by-sample matrix,
+#' grouped by class labels. It is designed for visualizing abundance or intensity values,
+#' and supports both fixed and dynamic log-scaled color mapping.
 #'
-#' @param X A numeric matrix (features x samples). Ignored if `data` is provided.
-#' @param y A vector of sample class labels. Ignored if `data` is provided.
-#' @param main Title of the plot.
-#' @param ylabl (Unused).
-#' @param ylabr (Unused).
-#' @param fixed.scale Logical. Use fixed color scale (TRUE) or dynamic log4 scale (FALSE).
+#' @param X A numeric matrix or data frame (features x samples).
+#' @param y A vector of sample class labels corresponding to columns in `X`.
+#' @param main A character string for the plot title.
+#' @param ylabl (Unused; reserved for future use).
+#' @param ylabr (Unused; reserved for future use).
+#' @param fixed.scale Logical; if `TRUE`, uses a fixed log-scale color mapping.
+#'   If `FALSE`, the color scale is computed dynamically from data range. Default is `TRUE`.
 #' @param data Optional. A list containing `X`, `y`, and optionally `classes`.
-#' @param select_features Optional vector of feature names (rownames of X) to display.
-#' @param select_samples Optional vector of sample names (colnames of X) to display.
+#'   If provided, overrides `X` and `y`.
+#' @param select_features Optional vector of feature names to display (subset of rownames of `X`).
+#' @param select_samples Optional vector of sample names to display (subset of colnames of `X`).
 #'
-#' @return A ggplot object.
+#' @return A `ggplot2` object containing the barcode heatmap.
 #'
 #' @import ggplot2
 #' @importFrom tidyr pivot_longer
-#' @importFrom dplyr mutate left_join filter
-#' @importFrom scales rescale squish log_trans label_number
+#' @importFrom dplyr mutate filter
+#' @importFrom scales log_trans label_number squish
 #' @export
 plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
                         fixed.scale = TRUE, data = NULL,
@@ -1050,7 +1054,7 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
   library(dplyr)
   library(scales)
   
-  # --- Extract from data object if provided ---
+  # --- Load from data object if provided ---
   if (!is.null(data)) {
     if (!all(c("X", "y") %in% names(data))) {
       stop("Data object must contain at least 'X' and 'y'")
@@ -1079,7 +1083,7 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
   
   if (is.null(X) || is.null(y)) stop("Both X and y must be provided.")
   
-  # --- Apply feature/sample selection ---
+  # --- Subset features and samples if requested ---
   if (!is.null(select_features)) {
     X <- X[rownames(X) %in% select_features, , drop = FALSE]
   }
@@ -1088,7 +1092,7 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
     y <- y[colnames(X) %in% select_samples]
   }
   
-  # --- Validation ---
+  # --- Sanity check ---
   if (ncol(X) != length(y)) {
     stop("Length of y must match number of columns in X after selection.")
   }
@@ -1099,7 +1103,7 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
   feature_levels <- rownames(X)
   sample_levels <- colnames(X)
   
-  # --- Reshape data ---
+  # --- Reshape data to long format ---
   df_long <- as.data.frame(X) %>%
     mutate(Feature = rownames(X)) %>%
     pivot_longer(cols = -Feature, names_to = "Sample", values_to = "value")
@@ -1114,25 +1118,25 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
       Group = factor(Group, levels = levels(y))
     )
   
+  # Replace 0 with NA for white tiles
   df_long$value[df_long$value == 0] <- NA
   
+  # --- Define color scale ---
   # --- Color scale ---
   if (fixed.scale) {
     breaks <- c(1e-07, 4e-07, 1.6e-06, 6.4e-06,
                 2.56e-05, 0.0001024, 0.0004096, 0.0016384)
-    colors <- c("white", "deepskyblue", "blue", "green3", "yellow",
-                "orange", "red", "orangered2", "darkred")
     
     fill_scale <- scale_fill_gradientn(
-      colors = colors,
-      values = rescale(breaks),
+      colors = c("white", "deepskyblue", "blue", "green3", "yellow",
+                 "orange", "red", "orangered2", "darkred"),
+      trans = log_trans(base = 4),
+      breaks = breaks,
+      labels = scales::trans_format("log", math_format(10^.x)),
       limits = range(breaks),
       oob = squish,
       na.value = "white",
-      breaks = breaks,
-      labels = label_number(format = "e", accuracy = 1),
-      trans = log_trans(base = 4),
-      guide = guide_colorbar(title = "Value (log₄)")
+      guide = guide_colorbar(title = expression("Value (log"[4]*")"))
     )
   } else {
     non_zero_vals <- df_long$value[!is.na(df_long$value)]
@@ -1158,7 +1162,7 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
     )
   }
   
-  # --- Final plot ---
+  # --- Build the plot ---
   p <- ggplot(df_long, aes(x = Sample, y = Feature, fill = value)) +
     geom_tile() +
     facet_wrap(~Group, scales = "free_x") +
@@ -1174,7 +1178,6 @@ plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
   
   return(p)
 }
-
 
 #' Plot a Heatmap of a Model Population with Signed Color Gradient
 #'
