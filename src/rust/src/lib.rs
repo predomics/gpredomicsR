@@ -157,24 +157,34 @@ impl Param {
             ("select_random_pct", Robj::from(self.intern.ga.select_random_pct)),
             ("mutated_children_pct", Robj::from(self.intern.ga.mutated_children_pct)),
             ("mutated_features_pct", Robj::from(self.intern.ga.mutated_features_pct)),
-            ("mutation_non_null_chance_pct", Robj::from(self.intern.ga.mutation_non_null_chance_pct)),
-            ("feature_importance_permutations", Robj::from(self.intern.ga.feature_importance_permutations)),
-            ("keep_all_generations", Robj::from(self.intern.ga.keep_all_generations)),
+            ("mutation_non_null_chance_pct", Robj::from(self.intern.ga.mutation_non_null_chance_pct))
         ]);
 
         // Convert GA fields
         let beam = List::from_pairs(vec![
-            ("max_nb_of_models", Robj::from(self.intern.beam.max_nb_of_models)),
+            ("method", Robj::from(self.intern.beam.method.clone())),
             ("kmin", Robj::from(self.intern.beam.kmin)),
             ("kmax", Robj::from(self.intern.beam.kmax)),
-            ("nb_very_best_models", Robj::from(self.intern.beam.nb_very_best_models)),
-            ("nb_best_models", Robj::from(self.intern.beam.nb_best_models)),
-            ("features_importance_minimal_pct", Robj::from(self.intern.beam.features_importance_minimal_pct)),
+            ("best_models_ci_alpha", Robj::from(self.intern.beam.best_models_ci_alpha)),            
+            ("max_nb_of_models", Robj::from(self.intern.beam.max_nb_of_models)),
+        ]);
+
+        // Convert MCMC fields
+        let mcmc = List::from_pairs(vec![
+            ("n_iter", Robj::from(self.intern.mcmc.n_iter)),
+            ("n_burn", Robj::from(self.intern.mcmc.n_burn)),
+            ("lambda", Robj::from(self.intern.mcmc.lambda)),
+            ("nmin", Robj::from(self.intern.mcmc.nmin)),
+            ("save_trace_outdir", Robj::from(self.intern.mcmc.save_trace_outdir.clone()))
         ]);
 
         // Convert CV fields
         let cv = List::from_pairs(vec![
             ("fold_number", Robj::from(self.intern.cv.fold_number)),
+            ("cv_best_models_ci_alpha", Robj::from(self.intern.cv.cv_best_models_ci_alpha)),
+            ("n_permutations_oob",Robj::from(self.intern.cv.n_permutations_oob)),
+            ("scaled_importance", Robj::from(self.intern.cv.scaled_importance)),
+            ("importance_aggregation", Robj::from(self.intern.cv.importance_aggregation.clone())),
         ]);
 
         // Combine all sections into a single R list object
@@ -183,6 +193,7 @@ impl Param {
             ("data", Robj::from(data)),
             ("ga", Robj::from(ga)),
             ("beam", Robj::from(beam)),
+            ("mcmc", Robj::from(mcmc)),
             ("cv", Robj::from(cv)),
         ]);
 
@@ -233,7 +244,7 @@ impl Param {
     pub fn set_bool(&mut self, variable: &str, value: bool) {
         match variable {
             "gpu" => self.intern.general.gpu = value,
-            "keep_all_generations" => self.intern.ga.keep_all_generations = value,
+            "keep_trace" => self.intern.general.keep_trace = value,
             _ => panic!("Variable unknown or not settable byt set_bool: {} ", variable)
         }
     }
@@ -384,37 +395,54 @@ impl Individual {
     ///
     /// @export
     pub fn get(&self) -> Robj {
-
         let mut coeff = Vec::new();
         let mut indexes = Vec::new();
         for (index, coefficient) in self.intern.features.iter() {
             coeff.push(*coefficient as i32);     // R integers are 32-bit
-            indexes.push(*index as i32+1); // indexes start by 1 in R and need to be adapted
+            indexes.push(*index as i32 + 1);     // indexes start by 1 in R and need to be adapted
         }
-        
-        // Create an integer vector from 'vals'
-
-        let individual_robj = List::from_pairs(vec![
+    
+        // Build all fields including optionals before constructing the List
+        let mut individual_fields = vec![
             ("features", Robj::from(self.features.clone())),
-            ("coeff", Robj::from(coeff)),
-            ("indexes", Robj::from(indexes)),
-            ("k", Robj::from(self.intern.k as i32)),
             ("auc", Robj::from(self.intern.auc)),
-            ("epoch", Robj::from(self.intern.epoch as i32)),
             ("fit", Robj::from(self.intern.fit)),
             ("specificity", Robj::from(self.intern.specificity)),
             ("sensitivity", Robj::from(self.intern.sensitivity)),
             ("accuracy", Robj::from(self.intern.accuracy)),
             ("threshold", Robj::from(self.intern.threshold)),
+            ("k", Robj::from(self.intern.k as i32)),
+            ("epoch", Robj::from(self.intern.epoch as i32)),
             ("language", Robj::from(self.intern.get_language())),
             ("data_type", Robj::from(self.intern.get_data_type())),
-            ("data_type_minimum", Robj::from(self.intern.data_type_minimum)),
-            ("hash", Robj::from(self.intern.hash.to_string()))
-        ]).into_robj();
-
-        individual_robj
-
+            ("hash", Robj::from(self.intern.hash)),
+            ("epsilon", Robj::from(self.intern.epsilon)),
+            ("coefficients", Robj::from(coeff)),
+        ];
+    
+        // Add "parents"
+        let parents_robj = if let Some(parents) = &self.intern.parents {
+            Robj::from(parents.clone())
+        } else {
+            Robj::from(())
+        };
+        individual_fields.push(("parents", parents_robj));
+    
+        // Add "betas"
+        let betas_robj = if let Some(betas) = &self.intern.betas {
+            Robj::from(vec![betas.a, betas.b, betas.c])
+        } else {
+            Robj::from(())
+        };
+        
+        individual_fields.push(("betas", betas_robj));
+    
+        let individual_robj = List::from_pairs(individual_fields);
+    
+        individual_robj.into_robj()
     }
+
+
 
     /// Compute auc for this individual
     /// @export

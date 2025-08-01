@@ -631,3 +631,138 @@ analyzePopulationFeatures <- function(pop, X, y, res_clf, makeplot = TRUE, name 
   }
 }
 
+
+#' Plot barcode-style heatmap with ggplot2
+#'
+#' Visualizes a matrix of feature abundances across samples as a barcode-style heatmap,
+#' grouped by class and optionally using a log scale.
+#'
+#' @param X A numeric matrix (features x samples). Ignored if `data` is provided.
+#' @param y A vector of sample class labels. Ignored if `data` is provided.
+#' @param main Title of the plot.
+#' @param ylabl (Unused).
+#' @param ylabr (Unused).
+#' @param fixed.scale Logical. Use fixed predefined log scale (TRUE) or dynamic log4 scale based on data (FALSE).
+#' @param data Optional list containing `X`, `y`, and optionally `classes`.
+#' @param select_features Optional vector of feature names (rownames of X) to display.
+#' @param select_samples Optional vector of sample names (colnames of X) to display.
+#'
+#' @return A ggplot object representing the heatmap.
+#'
+#' @import ggplot2
+#' @importFrom tidyr pivot_longer
+#' @importFrom dplyr mutate filter
+#' @importFrom scales rescale squish log_trans label_scientific
+#' @export
+plotBarcode <- function(X = NULL, y = NULL, main = "", ylabl = "", ylabr = "",
+                        fixed.scale = TRUE, data = NULL,
+                        select_features = NULL, select_samples = NULL) {
+  library(ggplot2)
+  library(tidyr)
+  library(dplyr)
+  library(scales)
+  
+  # --- Handle data object input ---
+  if (!is.null(data)) {
+    if (!all(c("X", "y") %in% names(data))) stop("Data must contain 'X' and 'y'")
+    X <- data$X
+    y <- data$y
+    if (is.raw(y)) y <- as.integer(y)
+    if (!is.vector(y)) y <- as.vector(y)
+    y <- as.factor(y)
+    if (!is.null(data$classes)) {
+      levels(y) <- as.character(data$classes)
+    }
+  } else {
+    if (is.raw(y)) y <- as.integer(y)
+    if (!is.vector(y)) y <- as.vector(y)
+    y <- as.factor(y)
+  }
+  
+  if (is.null(X) || is.null(y)) stop("Both X and y must be provided.")
+  
+  # --- Apply feature/sample filtering ---
+  if (!is.null(select_features)) {
+    X <- X[rownames(X) %in% select_features, , drop = FALSE]
+  }
+  if (!is.null(select_samples)) {
+    X <- X[, colnames(X) %in% select_samples, drop = FALSE]
+    y <- y[colnames(X) %in% select_samples]
+  }
+  
+  # --- Validation ---
+  if (ncol(X) != length(y)) stop("Length of y must match number of columns in X")
+  if (is.null(colnames(X))) colnames(X) <- paste0("Sample", seq_len(ncol(X)))
+  if (is.null(rownames(X))) rownames(X) <- paste0("Feature", seq_len(nrow(X)))
+  
+  feature_levels <- rownames(X)
+  sample_levels <- colnames(X)
+  
+  # --- Reshape to long format ---
+  df_long <- as.data.frame(X) %>%
+    mutate(Feature = rownames(X)) %>%
+    pivot_longer(cols = -Feature, names_to = "Sample", values_to = "value")
+  
+  df_long$Group <- y[match(df_long$Sample, colnames(X))]
+  
+  df_long <- df_long %>%
+    filter(!is.na(Group)) %>%
+    mutate(
+      Feature = factor(Feature, levels = rev(feature_levels)),
+      Sample = factor(Sample, levels = sample_levels),
+      Group = factor(Group, levels = levels(y))
+    )
+  
+  df_long$value[df_long$value == 0] <- NA  # treat zeros as NA
+  
+  # --- Color scale ---
+  if (fixed.scale) {
+    breaks <- c(1e-07, 4e-07, 1.6e-06, 6.4e-06, 2.56e-05, 1.02e-4, 4.1e-4, 1.6e-3)
+    fill_scale <- scale_fill_gradientn(
+      colours = c("white", "deepskyblue", "blue", "green3", "yellow", "orange", "red", "darkred"),
+      trans = log_trans(base = 4),
+      breaks = breaks,
+      labels = label_scientific(digits = 2),
+      limits = range(breaks),
+      oob = squish,
+      na.value = "white",
+      guide = guide_colorbar(title = expression("Value (log"[4]*")"))
+    )
+  } else {
+    non_zero_vals <- df_long$value[!is.na(df_long$value)]
+    if (length(non_zero_vals) == 0) stop("All values are zero; cannot compute log scale.")
+    
+    min_val <- min(non_zero_vals)
+    max_val <- max(non_zero_vals)
+    log_min <- floor(log(min_val, base = 4))
+    log_max <- ceiling(log(max_val, base = 4))
+    breaks <- 4 ^ seq(log_min, log_max)
+    
+    fill_scale <- scale_fill_gradientn(
+      colours = colorRampPalette(c("white", "blue", "green", "yellow", "red", "darkred"))(length(breaks)),
+      trans = log_trans(base = 4),
+      breaks = breaks,
+      labels = label_scientific(digits = 2),
+      limits = c(min_val, max_val),
+      oob = squish,
+      na.value = "white",
+      guide = guide_colorbar(title = expression("Value (log"[4]*")"))
+    )
+  }
+  
+  # --- Plot ---
+  p <- ggplot(df_long, aes(x = Sample, y = Feature, fill = value)) +
+    geom_tile() +
+    facet_wrap(~Group, scales = "free_x") +
+    fill_scale +
+    labs(title = main, x = "", y = "") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      panel.grid = element_blank(),
+      strip.text = element_text(size = 12),
+      axis.text = element_text(size = 10)
+    )
+  
+  return(p)
+}

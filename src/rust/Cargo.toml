@@ -1,6 +1,6 @@
 [package]
 name = 'rgpredomicsR'
-version = '0.3.0'
+version = '0.4.0'
 edition = '2021'
 
 [lib]
@@ -9,7 +9,7 @@ name = 'rgpredomicsR'
 
 [dependencies]
 extendr-api = '*'
-gpredomics = { git = "https://github.com/predomics/gpredomics.git", tag="v0.5.6" }
+gpredomics = { git = "https://github.com/predomics/gpredomics.git", tag="v0.6" }
 #gpredomics = { git = "https://github.com/predomics/gpredomics.git"}
 flexi_logger = "0.27"
 chrono = "0.4"
