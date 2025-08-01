@@ -184,7 +184,7 @@ impl Param {
             ("cv_best_models_ci_alpha", Robj::from(self.intern.cv.cv_best_models_ci_alpha)),
             ("n_permutations_oob",Robj::from(self.intern.cv.n_permutations_oob)),
             ("scaled_importance", Robj::from(self.intern.cv.scaled_importance)),
-            ("importance_aggregation", Robj::from(self.intern.cv.importance_aggregation.clone())),
+            ("importance_aggregation", Robj::from(format!("{:?}",self.intern.cv.importance_aggregation))),
         ]);
 
         // Combine all sections into a single R list object
@@ -370,18 +370,35 @@ pub struct Individual {
     features: Vec<String>
 }
 
+
+impl Individual {
+    
+/// Create a new Individual object filled with a GIndividual
+    pub fn new(ind:&GIndividual, data:&GData) -> Self {
+        Self {
+            intern: ind.clone(),
+            features: ind.features
+            .iter()
+            .filter_map(|i| data.features.get(*i.0).cloned()) // sécurise contre out-of-bound
+            .collect()
+        }
+    }
+
+}
+
+
 /// @export
 #[extendr]
 impl Individual {
 
     /// Create a new Individual object
     /// @export
-    pub fn new() -> Self {
-        Self {
-            intern: GIndividual::new(),
-            features: Vec::new()
-        }
-    }
+    //pub fn new() -> Self {
+    //    Self {
+    //        intern: GIndividual::new(),
+    //        features: Vec::new()
+    //    }
+    //}
 
     /// Retrieves a full description of an individual.
     /// This function returns an R object that includes individual features and related statistics.
@@ -575,7 +592,7 @@ impl Experiment {
     /// @export
     pub fn get_generation(&self, generation: i32) -> Robj {
         self.generations[generation as usize].individuals.iter().cloned()
-            .map(|i| {(Individual {intern: i, features: Vec::new()}).get()})
+            .map(|i| {(Individual::new(&i, &self.train_data.intern)).get()})
             .collect::<Vec<Robj>>()
             .into_robj()
     } 

@@ -24,12 +24,12 @@ printModel <- function(mod, method = "short", score = "fit") {
          
          # ---- Short Format ----
          short = {
-           if (all(!is.null(mod$coeff), length(mod$coeff) > 0)) {
+           if (all(!is.null(mod$coefficients), length(mod$coefficients) > 0)) {
              ind.pos <- mod$coeff > 0
              ind.neg <- mod$coeff < 0
              
-             term.pos <- if (any(ind.pos)) paste0("+", sort(mod$indexes[ind.pos]), collapse = " ") else "0"
-             term.neg <- if (any(ind.neg)) paste0("+", sort(mod$indexes[ind.neg]), collapse = " ") else "0"
+             term.pos <- if (any(ind.pos)) paste0("+", sort(mod$features[ind.pos]), collapse = " ") else "0"
+             term.neg <- if (any(ind.neg)) paste0("+", sort(mod$features[ind.neg]), collapse = " ") else "0"
              
              res <- paste0("(", term.pos, ")", " - ", "(", term.neg, ")", " ≥ ", format(mod$threshold, scientific = TRUE), " then ", "1")
              
