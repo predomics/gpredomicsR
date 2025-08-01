@@ -114,6 +114,32 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
 }
 
 
+load_experiment <- function(path){
+  startingTime <- Sys.time()
+  
+  expRust <- Experiment$load(path)
+  
+  paramRust <- expRust$get_param()
+  
+  experiment <- list(
+    rust = list(
+      experiment = expRust,
+      param = paramRust#,
+      # running_flag = running_flag,
+      # glog = glog
+    ),
+    params = paramRust$get(),
+    data = list(
+      train = expRust$get_data_robj(train = TRUE),
+      test = expRust$get_data_robj(train = FALSE)
+    ),
+    model_collection = parseExperiment(expRust),  # Convert Rust pointer to R object
+    execTime = as.numeric(Sys.time() - startingTime, units = "mins")
+  )
+}
+
+
+
 
 #' @title parseExperiment
 #' @description Parse the experiment object to extract the individuals

@@ -57,6 +57,12 @@ Experiment$population_size <- function(generation) .Call(wrap__Experiment__popul
 
 Experiment$load_data <- function(x_path, y_path) .Call(wrap__Experiment__load_data, self, x_path, y_path)
 
+Experiment$get_param <- function() .Call(wrap__Experiment__get_param, self)
+
+Experiment$load <- function(path) .Call(wrap__Experiment__load, path)
+
+Experiment$save <- function(path) invisible(.Call(wrap__Experiment__save, self, path))
+
 #' @rdname Experiment
 #' @usage NULL
 #' @export

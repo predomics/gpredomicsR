@@ -11,12 +11,13 @@ use gpredomics::data::Data as GData;
 use gpredomics::param::get as GParam_get;
 use gpredomics::population::Population  as GPopulation;
 use gpredomics::individual::Individual  as GIndividual;
+use gpredomics::experiment::Experiment  as GExperiment;
 use gpredomics::{ run_ga, run_beam };
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use flexi_logger::{Logger, WriteMode, FileSpec, LogSpecification};
 use chrono::Local;
-use std::collections::HashMap;
+use std::collections::{self, HashMap};
 
 ///////////////////////////////////////////////////////////////
 /// Running Flag
@@ -126,7 +127,6 @@ impl Param {
             ("log_level", Robj::from(self.intern.general.log_level.clone())),
             ("fit", Robj::from(format!("{:?}",self.intern.general.fit))),
             ("k_penalty", Robj::from(self.intern.general.k_penalty.clone())),
-            ("overfit_penalty", Robj::from(self.intern.general.overfit_penalty.clone())),
             ("fr_penalty", Robj::from(self.intern.general.fr_penalty.clone())),
             ("gpu", Robj::from(self.intern.general.gpu.clone())),
         ]);
@@ -178,13 +178,22 @@ impl Param {
             ("save_trace_outdir", Robj::from(self.intern.mcmc.save_trace_outdir.clone()))
         ]);
 
+
+        // Convert CV fields
+        let importance = List::from_pairs(vec![
+            ("compute_importance", Robj::from(self.intern.importance.compute_importance)),
+            ("n_permutations_oob",Robj::from(self.intern.importance.n_permutations_oob)),
+            ("scaled_importance", Robj::from(self.intern.importance.scaled_importance)),
+            ("importance_aggregation", Robj::from(format!("{:?}",self.intern.importance.importance_aggregation)))
+        ]);
+
         // Convert CV fields
         let cv = List::from_pairs(vec![
-            ("fold_number", Robj::from(self.intern.cv.fold_number)),
-            ("cv_best_models_ci_alpha", Robj::from(self.intern.cv.cv_best_models_ci_alpha)),
-            ("n_permutations_oob",Robj::from(self.intern.cv.n_permutations_oob)),
-            ("scaled_importance", Robj::from(self.intern.cv.scaled_importance)),
-            ("importance_aggregation", Robj::from(format!("{:?}",self.intern.cv.importance_aggregation))),
+            ("overfit_penalty", Robj::from(self.intern.cv.overfit_penalty.clone())),
+            ("inner_folds", Robj::from(self.intern.cv.inner_folds)),
+            ("outer_folds", Robj::from(self.intern.cv.outer_folds)),
+            ("fit_on_valid", Robj::from(self.intern.cv.fit_on_valid)),
+            ("cv_best_models_ci_alpha", Robj::from(self.intern.cv.cv_best_models_ci_alpha))
         ]);
 
         // Combine all sections into a single R list object
@@ -516,10 +525,11 @@ impl Individual {
 /// @export
 #[extendr]
 pub struct Experiment {
-    param: Param,
-    train_data: Data,
-    test_data: Data,
-    generations: Vec<GPopulation>
+    intern: GExperiment,
+    // param: Param,
+    // train_data: Data,
+    // test_data: Data,
+    // generations: Vec<GPopulation>
 }
 
 /// TODO add a load function to load a new Data (and check_compatibility)
@@ -545,33 +555,44 @@ impl Experiment {
     ///
     /// @export
     pub fn individual(&self, generation: i32, order:i32) -> Individual {
-        Individual {
-            intern:self.generations[generation as usize].individuals[order as usize].clone(),
-            features:self.train_data.intern.features.clone()
+        if let  Some(collection) = &self.intern.collection  {
+                Individual {
+                    intern: collection[generation as usize].individuals[order as usize].clone(),
+                    features: self.intern.train_data.features.clone()
+            }
+        } else {
+            panic!("Cannot extract an individual from an experiment without collection")
         }
-
     }
 
     /// @export
     pub fn test_data(&self) -> Data {
-        self.test_data.clone()
+        if let Some(test_data) = &self.intern.test_data {
+            Data {
+                intern: test_data.clone()
+            }
+        } else {
+            panic!("No test data attached to this experiment")
+        }
     }
 
     /// @export
     pub fn train_data(&self) -> Data {
-        self.train_data.clone()
+        Data {
+            intern: self.intern.train_data.clone()
+        }
     }
 
     /// @export
     pub fn get_data_robj(&self, train:bool) -> Robj {
-        if train {self.train_data.get()}
-        else {self.test_data.get()}
+        if train {self.train_data().get()}
+        else {self.test_data().get()}
     }
 
     /// @export
     pub fn get_data(&self, train:bool) -> Data {
-        if train {self.train_data.clone()}
-        else {self.test_data.clone()}
+        if train {self.train_data()}
+        else {self.test_data()}
     }
     
     /// Retrieves descriptions of all individuals from a specified generation.
@@ -591,10 +612,15 @@ impl Experiment {
     ///
     /// @export
     pub fn get_generation(&self, generation: i32) -> Robj {
-        self.generations[generation as usize].individuals.iter().cloned()
-            .map(|i| {(Individual::new(&i, &self.train_data.intern)).get()})
+        if let Some(collection)=&self.intern.collection {
+            collection[generation as usize].individuals.iter().cloned()
+            .map(|i| {(Individual::new(&i, &self.intern.train_data)).get()})
             .collect::<Vec<Robj>>()
             .into_robj()
+        }
+        else {
+            panic!("No collection found in this experiment")
+        }
     } 
 
 /*
@@ -647,13 +673,22 @@ impl Experiment {
     /// get the number of generation included in the Population object
     /// @export
     pub fn generation_number(&self) -> i32 {
-        self.generations.len() as i32
+        if let Some(collection) = &self.intern.collection {
+            collection.len() as i32
+        } else {
+            0
+        }
     }
 
     /// get the size (number of individuals) of a certain generation in a Population
     /// @export
     pub fn population_size(&self, generation: i32) -> i32 {
-        self.generations[generation as usize].individuals.len() as i32
+        if let Some(collection) = &self.intern.collection {
+            collection[generation as usize].individuals.len() as i32
+        }
+        else {
+            panic!("Cannot size any generation in this experiment because it has none")
+        }
     }
 
     /// load an external dataset to evaluate the model
@@ -661,12 +696,51 @@ impl Experiment {
     pub fn load_data(&self, x_path: String, y_path: String) -> Data {
         let mut gdata = GData::new();
         let _ = gdata.load_data(&x_path, &y_path);
-        if !self.train_data.intern.check_compatibility(&gdata) {
+        if !self.intern.train_data.check_compatibility(&gdata) {
             panic!("Data not compatible with training data");
         }
-        gdata.set_classes(self.train_data.intern.classes.clone());
+        gdata.set_classes(self.intern.train_data.classes.clone());
         Data {intern:gdata}
     }
+
+    /// lget a param object    
+    /// @export
+    pub fn get_param(&self) -> Param {
+        Param {
+            intern: self.intern.parameters.clone()
+        }
+    }
+
+    /// load a serialized experiment
+    /// @export
+    pub fn load(path: String) -> Self {
+        if let Ok(experiment) = GExperiment::load_auto(&path) {
+            Experiment {
+                intern: experiment
+            }
+        }
+        else {
+            panic!("Could not read an experiment from this file: {}",&path)
+        }
+    }
+
+    /// save an experiment
+    /// @export
+    pub fn save(&self, path: String) {
+        match self.intern.save_auto(&path) {
+            Ok(_) => {
+                println!("Experiment saved in {}", path);
+            }
+            Err(e) => {
+                eprintln!("Could not save an experiment from this file: {}. Error: {}", path, e);
+                // Optionally: panic! if you still want to crash
+                // panic!("Save failed: {}", e);
+            }
+        }
+    }
+
+
+
 }
 
 /// custom format for logs
@@ -768,6 +842,7 @@ impl GLogger {
         let new_spec = LogSpecification::parse(level).unwrap();
         self.handle.set_new_spec(new_spec);
     }
+
 }
 
 /// The simple genetic algorithm (ga) produce a Population from a Param object
@@ -777,18 +852,12 @@ impl GLogger {
 #[extendr]
 pub fn fit(param: &Param, running_flag: &RunningFlag) -> Experiment {
     let algo = &param.intern.general.algo;
-    let (generations, train_data, test_data) = 
-    match algo.as_str() {
+    Experiment {
+        intern: match algo.as_str() {
         "ga" => { run_ga(&param.intern, running_flag.get_arc()) },
         "beam" => { run_beam(&param.intern, running_flag.get_arc()) },
         // "mcmc" => { mcmc_run(&param.intern, running_flag.get_arc()) },
-        _ => panic!("No such algo {}",algo) };
-    
-    Experiment {
-        param: param.clone(),
-        train_data: Data {intern:train_data},
-        test_data: Data {intern:test_data},
-        generations: generations
+        _ => panic!("No such algo {}",algo) }
     }
 }
 

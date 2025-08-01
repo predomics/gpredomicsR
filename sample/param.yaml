@@ -2,7 +2,7 @@
 # unless specifically indicated all field accept a single value
 general:
   seed: 42                                    # used in parent selection, child conception (cross over) and mutation, all of which is single thread
-  algo: ga                                    # ga for genetic algorithm, beam for beam algorithm and mcmc for MCMC-based algorithm
+  algo: beam                                    # ga for genetic algorithm, beam for beam algorithm and mcmc for MCMC-based algorithm
   cv: false                                   # should cross-validation be enabled?
   thread_number: 8                            # the number of thread used in feature selection and fit computation
   gpu: true                                   # should Gpredomics use GPU ? (ga and beam only)

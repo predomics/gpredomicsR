@@ -8,7 +8,6 @@ rextendr::document()
 library(gpredomicsR)
 
 # # other libraries
-library(ggplot2)
 library(tidyverse)
 library(GGally)
 # library(momr)
@@ -18,8 +17,17 @@ library(GGally)
 #---------------------------------------------
 
 # Run experiment
-system.time(exp <- runExperiment(param.path = "sample/param.yaml"))
+system.time(exp <- runExperiment(param.path = "sample/param.yaml", name = "test_experiment", glog_level = "debug"))
 # saveRDS(exp, paste0(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "_exp.rds"))
+
+
+# Save the experiment
+exp$rust$experiment$save("sample/test_experiment.mp")
+
+
+exp2 <- load_experiment("sample/test_experiment.mp")
+
+
 
 #---------------------------------------------
 # Data extraction
