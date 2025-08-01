@@ -16,7 +16,11 @@ isModel <- function(obj) {
   }
   
   # Check if the object contains the expected attributes
-  required_fields <- c("indexes", "features", "coeff", "auc", "hash")
+  required_fields <- c("features", "coefficients", "language", "data_type", "k", "threshold", 
+                       "fit", "auc", "specificity", "sensitivity", "accuracy", 
+                       "hash", "epoch", "parents" 
+                       # ,"betas", # for mcmc
+  )
   has_fields <- all(sapply(required_fields, function(field) !is.null(obj[[field]])))
   
   return(has_fields)

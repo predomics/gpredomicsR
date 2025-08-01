@@ -110,8 +110,6 @@ GLogger$set_level <- function(level) invisible(.Call(wrap__GLogger__set_level, s
 #' @export
 Individual <- new.env(parent = emptyenv())
 
-Individual$new <- function() .Call(wrap__Individual__new)
-
 Individual$get <- function() .Call(wrap__Individual__get, self)
 
 Individual$compute_auc <- function(data) invisible(.Call(wrap__Individual__compute_auc, self, data))

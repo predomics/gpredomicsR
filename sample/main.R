@@ -33,7 +33,7 @@ test_data = exp$rust$experiment$get_data_robj(train = FALSE)
 
 plotBarcode(data = train_data, fixed.scale = FALSE)
 plotBarcode(data = test_data, fixed.scale = FALSE)
-plotBarcode(data = test_data, select_features = c("msp_0937",  "msp_0938",  "msp_0939"))
+plotBarcode(data = train_data, select_features = c("msp_0937",  "msp_0938",  "msp_0939", "msp_0069", "msp_0005"), fixed.scale = FALSE)
 # plotBarcode(data = test_data, fixed.scale = TRUE)
 
 
@@ -63,10 +63,10 @@ barplot(unlist(lapply(exp$model_collection,length)), las = 2, names.arg = 1:leng
 
 table(populationGet_X("language")(pop.final))
 # Binary    Pow2   Ratio Ternary 
-# 179     394     161     173
+# 1133    1172    1374    1183
 table(populationGet_X("data_type")(pop.final))
 # Log Prevalence        Raw 
-# 465        222        220 
+# 1563       1787       1512 
 
 plot(table(populationGet_X("data_type")(pop.final),populationGet_X("language")(pop.final)))
      

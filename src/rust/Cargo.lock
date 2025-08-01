@@ -486,8 +486,8 @@ dependencies = [
 
 [[package]]
 name = "gpredomics"
-version = "0.5.8"
-source = "git+https://github.com/predomics/gpredomics.git?tag=v0.6#f5822b8a439657c7e40d9870abfdb79f14d64cb3"
+version = "0.6.1"
+source = "git+https://github.com/predomics/gpredomics.git?tag=v0.6.1#f3416e7299b354391fd9a16b039e9de341b78b42"
 dependencies = [
  "argmin",
  "bincode",
