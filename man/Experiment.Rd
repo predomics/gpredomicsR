@@ -6,7 +6,7 @@
 \alias{$.Experiment}
 \title{TODO add a load function to load a new Data (and check_compatibility)}
 \format{
-An object of class \code{environment} of length 12.
+An object of class \code{environment} of length 13.
 }
 \usage{
 Experiment

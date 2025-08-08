@@ -59,6 +59,8 @@ Experiment$load_data <- function(x_path, y_path) .Call(wrap__Experiment__load_da
 
 Experiment$get_param <- function() .Call(wrap__Experiment__get_param, self)
 
+Experiment$get_jury <- function() .Call(wrap__Experiment__get_jury, self)
+
 Experiment$load <- function(path) .Call(wrap__Experiment__load, path)
 
 Experiment$save <- function(path) invisible(.Call(wrap__Experiment__save, self, path))

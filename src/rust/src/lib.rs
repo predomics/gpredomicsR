@@ -12,6 +12,7 @@ use gpredomics::param::get as GParam_get;
 use gpredomics::population::Population  as GPopulation;
 use gpredomics::individual::Individual  as GIndividual;
 use gpredomics::experiment::Experiment  as GExperiment;
+use gpredomics::experiment::ExperimentMetadata;
 use gpredomics::experiment::Jury  as GJury;
 use gpredomics::{ run_ga, run_beam, run_mcmc };
 
@@ -529,7 +530,6 @@ impl Individual {
 }
 
 
-
 ///////////////////////////////////////////////////////////////
 /// Experiment object
 ///////////////////////////////////////////////////////////////
@@ -724,6 +724,19 @@ impl Experiment {
             intern: self.intern.parameters.clone()
         }
     }
+    
+    /// get a jury object
+    /// @export
+    pub fn get_jury(&self) -> Jury {
+        match &self.intern.others {
+            Some(ExperimentMetadata::Jury { jury }) => {
+                Jury {
+                    intern: jury.clone()
+                }
+            },
+            _ => panic!("No Jury")
+        }
+    }
 
     /// load a serialized experiment
     /// @export
@@ -802,7 +815,7 @@ pub struct Jury {
 }
 
 /// @export
-// #[extendr]
+#[extendr]
 impl Jury {
 
     /// Constructs a Jury object
@@ -844,14 +857,14 @@ impl Jury {
 
     /// Display of the Jury and predictions on train/test in the same way as Gpredomics
     /// @export
-    pub fn display(&mut self, data: &Data, test_data: Option<&Data>, param: &Param) -> Robj {
-        let display_text = self.intern.display(
-            &data.intern, 
-            test_data.map(|d| &d.intern), 
-            &param.intern
-        );
-        display_text.into_robj()
-    }
+    // pub fn display(&mut self, data: &Data, test_data: Option<&Data>, param: &Param) -> Robj {
+    //     let display_text = self.intern.display(
+    //         &data.intern, 
+    //         test_data.map(|d| &d.intern), 
+    //         &param.intern
+    //     );
+    //     display_text.into_robj()
+    // }
 
     /// Returns an R object containing all Jury fields for R interface
     /// @export
@@ -1006,13 +1019,17 @@ impl GLogger {
 #[extendr]
 pub fn fit(param: &Param, running_flag: &RunningFlag) -> Experiment {
     let algo = &param.intern.general.algo;
-    Experiment {
+    let mut exp = Experiment {
         intern: match algo.as_str() {
         "ga" => { run_ga(&param.intern, running_flag.get_arc()) },
         "beam" => { run_beam(&param.intern, running_flag.get_arc()) },
         "mcmc" => { run_mcmc(&param.intern, running_flag.get_arc()) },
         _ => panic!("No such algo {}",algo) }
+    };
+    if param.intern.voting.vote {
+        exp.intern.compute_voting();
     }
+    exp
 }
 
 

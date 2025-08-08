@@ -27,6 +27,9 @@ exp$rust$experiment$save("sample/test_experiment.mp")
 
 exp2 <- load_experiment("sample/test_experiment.mp")
 
+tmp <-exp$rust$experiment$get_data(train = TRUE)
+Experiment$get_data()
+
 
 
 #---------------------------------------------
