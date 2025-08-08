@@ -12,12 +12,13 @@ use gpredomics::param::get as GParam_get;
 use gpredomics::population::Population  as GPopulation;
 use gpredomics::individual::Individual  as GIndividual;
 use gpredomics::experiment::Experiment  as GExperiment;
-use gpredomics::{ run_ga, run_beam };
+use gpredomics::experiment::Jury  as GJury;
+use gpredomics::{ run_ga, run_beam, run_mcmc };
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use flexi_logger::{Logger, WriteMode, FileSpec, LogSpecification};
 use chrono::Local;
-use std::collections::{self, HashMap};
+use std::collections::HashMap;
 
 ///////////////////////////////////////////////////////////////
 /// Running Flag
@@ -179,7 +180,7 @@ impl Param {
         ]);
 
 
-        // Convert CV fields
+        // Convert Importance fields
         let importance = List::from_pairs(vec![
             ("compute_importance", Robj::from(self.intern.importance.compute_importance)),
             ("n_permutations_oob",Robj::from(self.intern.importance.n_permutations_oob)),
@@ -195,6 +196,18 @@ impl Param {
             ("fit_on_valid", Robj::from(self.intern.cv.fit_on_valid)),
             ("cv_best_models_ci_alpha", Robj::from(self.intern.cv.cv_best_models_ci_alpha))
         ]);
+        
+        // Convert Voting fields
+        let voting = List::from_pairs(vec![
+            ("vote", Robj::from(self.intern.voting.vote)),
+            ("use_fbm", Robj::from(self.intern.voting.use_fbm)),
+            ("min_perf", Robj::from(self.intern.voting.min_perf)),
+            ("min_diversity", Robj::from(self.intern.voting.min_diversity)),
+            ("method", Robj::from(format!("{:?}",self.intern.voting.method))),
+            ("method_threshold", Robj::from(self.intern.voting.method_threshold)),
+            ("threshold_windows_pct", Robj::from(self.intern.voting.threshold_windows_pct)),
+            ("complete_display", Robj::from(self.intern.voting.complete_display)),
+        ]);
 
         // Combine all sections into a single R list object
         let param_list = List::from_pairs(vec![
@@ -204,6 +217,7 @@ impl Param {
             ("beam", Robj::from(beam)),
             ("mcmc", Robj::from(mcmc)),
             ("cv", Robj::from(cv)),
+            ("cv", Robj::from(voting)),
         ]);
 
         Robj::from(param_list)
@@ -555,9 +569,9 @@ impl Experiment {
     ///
     /// @export
     pub fn individual(&self, generation: i32, order:i32) -> Individual {
-        if let  Some(collection) = &self.intern.collection  {
+        if self.intern.collections.len() > 0 {
                 Individual {
-                    intern: collection[generation as usize].individuals[order as usize].clone(),
+                    intern: self.intern.collections[0][generation as usize].individuals[order as usize].clone(),
                     features: self.intern.train_data.features.clone()
             }
         } else {
@@ -612,8 +626,8 @@ impl Experiment {
     ///
     /// @export
     pub fn get_generation(&self, generation: i32) -> Robj {
-        if let Some(collection)=&self.intern.collection {
-            collection[generation as usize].individuals.iter().cloned()
+        if self.intern.collections.len() > 0 {
+            self.intern.collections[0][generation as usize].individuals.iter().cloned()
             .map(|i| {(Individual::new(&i, &self.intern.train_data)).get()})
             .collect::<Vec<Robj>>()
             .into_robj()
@@ -673,8 +687,8 @@ impl Experiment {
     /// get the number of generation included in the Population object
     /// @export
     pub fn generation_number(&self) -> i32 {
-        if let Some(collection) = &self.intern.collection {
-            collection.len() as i32
+        if self.intern.collections.len() > 0 {
+            self.intern.collections[0].len() as i32
         } else {
             0
         }
@@ -683,8 +697,8 @@ impl Experiment {
     /// get the size (number of individuals) of a certain generation in a Population
     /// @export
     pub fn population_size(&self, generation: i32) -> i32 {
-        if let Some(collection) = &self.intern.collection {
-            collection[generation as usize].individuals.len() as i32
+        if self.intern.collections.len() > 0 {
+            self.intern.collections[0][generation as usize].individuals.len() as i32
         }
         else {
             panic!("Cannot size any generation in this experiment because it has none")
@@ -739,8 +753,148 @@ impl Experiment {
         }
     }
 
+}
 
+///////////////////////////////////////////////////////////////
+/// Population object
+///////////////////////////////////////////////////////////////
 
+/// @export
+#[extendr]
+pub struct Population {
+    intern: GPopulation,
+}
+
+/// @export
+#[extendr]
+impl Population {
+    /// Create a new empty Population object
+    /// @export 
+    pub fn new() -> Self {
+        Self {
+            intern: GPopulation::new()
+        }
+    }
+
+    /// Get population
+    /// @export
+    pub fn get(&self, data: &Data) -> Robj {
+        let individuals = self.intern.individuals
+            .iter()
+            .cloned()
+            .map(|gi| Individual::new(&gi, &data.intern).get())
+            .collect::<Vec<Robj>>();
+        List::from_pairs(vec![
+            ("individuals", Robj::from(individuals)),
+        ]).into_robj()
+    }
+
+}
+
+///////////////////////////////////////////////////////////////
+/// Jury object
+///////////////////////////////////////////////////////////////
+
+/// @export
+#[extendr]
+pub struct Jury {
+    intern: GJury,
+}
+
+/// @export
+// #[extendr]
+impl Jury {
+
+    /// Constructs a Jury object
+    /// @export
+    pub fn new_from_param(population: &Population, param: &Param) -> Jury {
+        let intern_jury = GJury::new_from_param(&population.intern, &param.intern);
+        Jury {
+            intern: intern_jury
+        }
+    }
+    
+    /// Calibrates the expert population on the training data
+    /// @export
+    pub fn evaluate(&mut self, data: &Data) {
+        self.intern.evaluate(&data.intern);
+    }
+
+    /// Compute class and scores on a new dataset
+    /// @export
+    pub fn evaluate_class_and_score(&self, data: &Data) -> Robj {
+        let (classes, scores) = self.intern.predict(&data.intern);
+        
+        list!(class=(classes.iter().map(|x| {*x as i32})).collect::<Vec<i32>>().into_robj(), score=scores.into_robj()).into()
+    }
+
+    /// Compute AUC/accuracy/sensitivity/rejection rate on a new dataset 
+    /// @export
+    pub fn compute_new_metrics(&self, data: &Data) -> Robj {
+        let (auc, accuracy, sensitivity, specificity, rejection_rate) = self.intern.compute_new_metrics(&data.intern);
+        
+        list!(
+            auc = auc.into_robj(),
+            accuracy = accuracy.into_robj(),
+            sensitivity = sensitivity.into_robj(),
+            specificity = specificity.into_robj(),
+            rejection_rate = rejection_rate.into_robj()
+        ).into()
+    }
+
+    /// Display of the Jury and predictions on train/test in the same way as Gpredomics
+    /// @export
+    pub fn display(&mut self, data: &Data, test_data: Option<&Data>, param: &Param) -> Robj {
+        let display_text = self.intern.display(
+            &data.intern, 
+            test_data.map(|d| &d.intern), 
+            &param.intern
+        );
+        display_text.into_robj()
+    }
+
+    /// Returns an R object containing all Jury fields for R interface
+    /// @export
+    pub fn get(&self, data: &Data) -> Robj {
+
+        let weights: Vec<f64> = match &self.intern.weights {
+            Some(weights) => weights.clone(),
+            None => vec![]
+        };
+
+        let predicted_classes = match &self.intern.predicted_classes {
+            Some(classes) => {
+                let classes_i32: Vec<i32> = classes.iter().map(|&x| x as i32).collect();
+                drop(classes_i32);
+            },
+            None => ()
+        };
+
+        let experts_individuals = self.intern.experts.individuals
+            .iter()
+            .cloned()
+            .map(|gi| Individual::new(&gi, &data.intern).get())
+            .collect::<Vec<Robj>>();
+
+        let jury_fields = vec![
+            ("experts", Robj::from(experts_individuals)),
+            ("voting_method", Robj::from(format!("{:?}", self.intern.voting_method))),
+            ("voting_threshold", Robj::from(self.intern.voting_threshold)),
+            ("threshold_window", Robj::from(self.intern.threshold_window)),
+            ("weights", Robj::from(weights)),
+            ("weighting_method", Robj::from(format!("{:?}", self.intern.weighting_method))),
+            ("auc", Robj::from(self.intern.auc)),
+            ("accuracy", Robj::from(self.intern.accuracy)),
+            ("sensitivity", Robj::from(self.intern.sensitivity)),
+            ("specificity", Robj::from(self.intern.specificity)),
+            ("rejection_rate", Robj::from(self.intern.rejection_rate)),
+            ("predicted_classes", Robj::from(predicted_classes)),
+        ];
+
+        let jury_robj = List::from_pairs(jury_fields);
+    
+        jury_robj.into_robj()
+    }
 }
 
 /// custom format for logs
@@ -856,7 +1010,7 @@ pub fn fit(param: &Param, running_flag: &RunningFlag) -> Experiment {
         intern: match algo.as_str() {
         "ga" => { run_ga(&param.intern, running_flag.get_arc()) },
         "beam" => { run_beam(&param.intern, running_flag.get_arc()) },
-        // "mcmc" => { mcmc_run(&param.intern, running_flag.get_arc()) },
+        "mcmc" => { run_mcmc(&param.intern, running_flag.get_arc()) },
         _ => panic!("No such algo {}",algo) }
     }
 }
@@ -873,8 +1027,6 @@ extendr_module! {
     impl Data;
     fn fit;
 }
-
-
 
 /*#[cfg(test)]
 mod tests {
