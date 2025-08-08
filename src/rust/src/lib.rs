@@ -218,7 +218,7 @@ impl Param {
             ("beam", Robj::from(beam)),
             ("mcmc", Robj::from(mcmc)),
             ("cv", Robj::from(cv)),
-            ("cv", Robj::from(voting)),
+            ("voting", Robj::from(voting)),
         ]);
 
         Robj::from(param_list)
@@ -795,7 +795,7 @@ impl Population {
         let individuals = self.intern.individuals
             .iter()
             .cloned()
-            .map(|gi| Individual::new(&gi, &data.intern).get())
+            .map(|gi: GIndividual| Individual::new(&gi, &data.intern).get())
             .collect::<Vec<Robj>>();
         List::from_pairs(vec![
             ("individuals", Robj::from(individuals)),
@@ -855,16 +855,19 @@ impl Jury {
         ).into()
     }
 
-    /// Display of the Jury and predictions on train/test in the same way as Gpredomics
+    /// Display of the Jury with only training data
     /// @export
-    // pub fn display(&mut self, data: &Data, test_data: Option<&Data>, param: &Param) -> Robj {
-    //     let display_text = self.intern.display(
-    //         &data.intern, 
-    //         test_data.map(|d| &d.intern), 
-    //         &param.intern
-    //     );
-    //     display_text.into_robj()
-    // }
+    pub fn display_train(&mut self, data: &Data, param: &Param) -> Robj {
+        let display_text = self.intern.display(&data.intern, None, &param.intern);
+        display_text.into_robj()
+    }
+
+    /// Display of the Jury with training and test data
+    /// @export
+    pub fn display_train_and_test(&mut self, data: &Data, test_data: &Data, param: &Param) -> Robj {
+        let display_text = self.intern.display(&data.intern, Some(&test_data.intern), &param.intern);
+        display_text.into_robj()
+    }
 
     /// Returns an R object containing all Jury fields for R interface
     /// @export
@@ -878,9 +881,9 @@ impl Jury {
         let predicted_classes = match &self.intern.predicted_classes {
             Some(classes) => {
                 let classes_i32: Vec<i32> = classes.iter().map(|&x| x as i32).collect();
-                drop(classes_i32);
+                Robj::from(classes_i32)
             },
-            None => ()
+            None => Robj::from(Vec::<i32>::new())
         };
 
         let experts_individuals = self.intern.experts.individuals
@@ -901,7 +904,7 @@ impl Jury {
             ("sensitivity", Robj::from(self.intern.sensitivity)),
             ("specificity", Robj::from(self.intern.specificity)),
             ("rejection_rate", Robj::from(self.intern.rejection_rate)),
-            ("predicted_classes", Robj::from(predicted_classes)),
+            ("predicted_classes", predicted_classes),
         ];
 
         let jury_robj = List::from_pairs(jury_fields);
@@ -1042,6 +1045,8 @@ extendr_module! {
     impl GLogger;
     impl Individual;
     impl Data;
+    impl Population;
+    impl Jury;
     fn fit;
 }
 

@@ -17,20 +17,16 @@ library(GGally)
 #---------------------------------------------
 
 # Run experiment
-system.time(exp <- runExperiment(param.path = "sample/param.yaml", name = "test_experiment", glog_level = "debug"))
+system.time(exp <- runExperiment(param.path = "sample/param.yaml", name = "test_experiment", glog_level = "info"))
 # saveRDS(exp, paste0(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "_exp.rds"))
-
 
 # Save the experiment
 exp$rust$experiment$save("sample/test_experiment.mp")
-
 
 exp2 <- load_experiment("sample/test_experiment.mp")
 
 tmp <-exp$rust$experiment$get_data(train = TRUE)
 Experiment$get_data()
-
-
 
 #---------------------------------------------
 # Data extraction
@@ -47,6 +43,31 @@ plotBarcode(data = test_data, fixed.scale = FALSE)
 plotBarcode(data = train_data, select_features = c("msp_0937",  "msp_0938",  "msp_0939", "msp_0069", "msp_0005"), fixed.scale = FALSE)
 # plotBarcode(data = test_data, fixed.scale = TRUE)
 
+#---------------------------------------------
+# Jury extraction
+#---------------------------------------------
+jury <- exp$rust$experiment$get_jury()
+rust_train <- exp$rust$experiment$get_data(train = TRUE)
+rust_test <- exp$rust$experiment$get_data(train = FALSE)
+
+# Evaluate on Train Data
+jury$evaluate(rust_train)
+
+# Get R object (data is simply used to obtain the names of the features and does not influence the jury object)
+jury$get(rust_train) 
+jury$get(rust_test)
+
+# Get Jury metrics on a specific dataset
+jury$compute_new_metrics(rust_train)
+jury$compute_new_metrics(rust_test)
+
+# Get Jury class and scores on a specific dataset
+jury$evaluate_class_and_score(rust_train)
+jury$evaluate_class_and_score(rust_test)
+
+# Print Jury
+jury$display_train(rust_train, exp$rust$param)
+jury$display_train_and_test(rust_train, rust_test, exp$rust$param)
 
 # load the annotation data
 annot <- read_tsv("sample/hs_10_4_1990_MSP.20240626.gtdb_r220_annot_long.tsv")

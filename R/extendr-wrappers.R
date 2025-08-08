@@ -155,5 +155,45 @@ Data$get <- function() .Call(wrap__Data__get, self)
 #' @export
 `[[.Data` <- `$.Data`
 
+#' @export
+Population <- new.env(parent = emptyenv())
+
+Population$new <- function() .Call(wrap__Population__new)
+
+Population$get <- function(data) .Call(wrap__Population__get, self, data)
+
+#' @rdname Population
+#' @usage NULL
+#' @export
+`$.Population` <- function (self, name) { func <- Population[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.Population` <- `$.Population`
+
+#' @export
+Jury <- new.env(parent = emptyenv())
+
+Jury$new_from_param <- function(population, param) .Call(wrap__Jury__new_from_param, population, param)
+
+Jury$evaluate <- function(data) invisible(.Call(wrap__Jury__evaluate, self, data))
+
+Jury$evaluate_class_and_score <- function(data) .Call(wrap__Jury__evaluate_class_and_score, self, data)
+
+Jury$compute_new_metrics <- function(data) .Call(wrap__Jury__compute_new_metrics, self, data)
+
+Jury$display_train <- function(data, param) .Call(wrap__Jury__display_train, self, data, param)
+
+Jury$display_train_and_test <- function(data, test_data, param) .Call(wrap__Jury__display_train_and_test, self, data, test_data, param)
+
+Jury$get <- function(data) .Call(wrap__Jury__get, self, data)
+
+#' @rdname Jury
+#' @usage NULL
+#' @export
+`$.Jury` <- function (self, name) { func <- Jury[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.Jury` <- `$.Jury`
+
 
 # nolint end
