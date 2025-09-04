@@ -114,6 +114,37 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
 }
 
 
+
+#' Load a Predomics experiment from file
+#'
+#' This function loads an experiment previously saved with the Rust backend
+#' (`Experiment$load`) and parses it into an R-friendly object.  
+#' It retrieves parameters, training and test data, and converts the internal 
+#' Rust model collection into an R object.
+#'
+#' @param path Character string. Path to the experiment file (created by Predomics/Gpredomics Rust).
+#'
+#' @return A list containing:
+#' \describe{
+#'   \item{rust}{A list with raw Rust objects:
+#'     \itemize{
+#'       \item{experiment} The Rust experiment pointer.
+#'       \item{param} The Rust parameter pointer.
+#'     }}
+#'   \item{params}{A named list of experiment parameters.}
+#'   \item{data}{A list with training and test datasets as R objects.}
+#'   \item{model_collection}{An R object converted from the Rust experiment, 
+#'   typically containing the fitted models.}
+#'   \item{execTime}{Numeric. Execution time in minutes for loading and parsing.}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' exp <- load_experiment("path/to/experiment.bin")
+#' str(exp$params)
+#' }
+#'
+#' @export
 load_experiment <- function(path){
   startingTime <- Sys.time()
   
@@ -137,8 +168,6 @@ load_experiment <- function(path){
     execTime = as.numeric(Sys.time() - startingTime, units = "mins")
   )
 }
-
-
 
 
 #' @title parseExperiment
