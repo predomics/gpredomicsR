@@ -3,7 +3,7 @@ Title: Analytical Extensions for gpredomics: Enhancing Rust-Based Genetic Predic
 Version: 0.1.1
 Authors@R: c(
   person("Edi", "Prifti", email = "edi.prifti@ird.fr", role = c("aut", "cre")),
-  person("Raynald", "de Lahondès", email = "raynald.delahondes@gmt.bio", role = "aut")
+  person("Raynald", "de Lahondès", email = "raynald.delahondes@gmt.bio", role = "aut"),
   person("Louison", "Lesage", email = "louison.lesage@gmt.bio", role = "aut")
   )
 Description: This package is part of the predomics suite and provides analytical 
