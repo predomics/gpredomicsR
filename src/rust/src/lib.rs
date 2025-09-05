@@ -17,9 +17,10 @@ use gpredomics::experiment::Jury  as GJury;
 use gpredomics::{ run_ga, run_beam, run_mcmc };
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use flexi_logger::{Logger, WriteMode, FileSpec, LogSpecification};
+use flexi_logger::{Logger, LoggerHandle, WriteMode, FileSpec, LogSpecification};
 use chrono::Local;
 use std::collections::HashMap;
+use once_cell::sync::OnceCell;
 
 ///////////////////////////////////////////////////////////////
 /// Running Flag
@@ -933,6 +934,29 @@ fn custom_format(
 /// Glogger object
 ///////////////////////////////////////////////////////////////
 
+
+// === Global logger handle & helpers (idempotent init) ===
+static LOGGER_HANDLE: OnceCell<LoggerHandle> = OnceCell::new();
+
+fn init_or_get_with<F>(builder: F) -> LoggerHandle
+where
+    F: FnOnce() -> Logger,
+{
+    if let Some(h) = LOGGER_HANDLE.get() {
+        return h.clone();
+    }
+    let handle = builder()
+        .start()
+        .expect("Failed to initialize logger");
+    // If two threads race, this will be Err for one; both handles are clones of the same Arc internally.
+    let _ = LOGGER_HANDLE.set(handle.clone());
+    handle
+}
+
+fn current_handle() -> Option<LoggerHandle> {
+    LOGGER_HANDLE.get().cloned()
+}
+
 /// An object to handle Logger
 /// @export
 #[extendr]
@@ -947,70 +971,78 @@ impl GLogger {
     /// Create a new screen logger
     /// @export
     pub fn new() -> Self {
-        println!("You can only set a logger once");
-        Self {
-            handle: Logger::try_with_str("info") // Set the log level (e.g., "info")
-                        .unwrap()
-                        .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
-                        .start() // Start the logger
-                        .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
-        }
+        let handle = init_or_get_with(|| {
+            Logger::try_with_str("info")
+                .expect("invalid log spec")
+                .write_mode(WriteMode::BufferAndFlush)
+        });
+        Self { handle }
     }
 
     /// Create a new screen logger
     /// @export
     pub fn level(level: String) -> Self {
-        println!("You can only set a logger once");
-        Self {
-            handle: Logger::try_with_str(level) // Set the log level (e.g., "info")
-                        .unwrap()
-                        .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
-                        .start() // Start the logger
-                        .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
+        if let Some(h) = current_handle() {
+            if let Ok(spec) = LogSpecification::parse(&level) {
+                h.set_new_spec(spec);
+            }
+            return Self { handle: h };
         }
+        let handle = init_or_get_with(|| {
+            Logger::try_with_str(&level)
+                .expect("invalid log spec")
+                .write_mode(WriteMode::BufferAndFlush)
+        });
+        Self { handle }
     }
 
     /// Create a new logger from a Param
     /// @export  
     pub fn get(param: &Param) -> Self {
-        println!("You can only set a logger once");
+        let level = &param.intern.general.log_level;
+        let log_base = &param.intern.general.log_base;
+        let log_suffix = &param.intern.general.log_suffix;
+
+        if let Some(h) = current_handle() {
+            if let Ok(spec) = LogSpecification::parse(level) {
+                h.set_new_spec(spec);
+            }
+            return Self { handle: h };
+        }
+
         let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
-        // Initialize the logger
-        let handle = if param.intern.general.log_base.len()>0 {
-            Logger::try_with_str(&param.intern.general.log_level) // Set log level (e.g., "info")
-                .unwrap()
-                .log_to_file(
-                    FileSpec::default()
-                        .basename(&param.intern.general.log_base) // Logs go into the "logs" directory
-                        .suffix(&param.intern.general.log_suffix)     // Use the ".log" file extension
-                        .discriminant(&timestamp), // Add timestamp to each log file
-                )
-                .write_mode(WriteMode::BufferAndFlush) // Control file write buffering
-                .format_for_files(custom_format) // Custom format for the log file
-                .format_for_stderr(custom_format) // Same format for the console
-                .start()
-                .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
-        }
-        else {
-            Logger::try_with_str(&param.intern.general.log_level) // Set the log level (e.g., "info")
-                .unwrap()
-                .write_mode(WriteMode::BufferAndFlush) // Use buffering for smoother output
-                .start() // Start the logger
-                .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e))
+        let handle = if !log_base.is_empty() {
+            init_or_get_with(|| {
+                Logger::try_with_str(level)
+                    .expect("invalid log spec")
+                    .log_to_file(
+                        FileSpec::default()
+                            .basename(log_base)
+                            .suffix(log_suffix)
+                            .discriminant(&timestamp),
+                    )
+                    .write_mode(WriteMode::BufferAndFlush)
+                    .format_for_files(custom_format)
+                    .format_for_stderr(custom_format)
+            })
+        } else {
+            init_or_get_with(|| {
+                Logger::try_with_str(level)
+                    .expect("invalid log spec")
+                    .write_mode(WriteMode::BufferAndFlush)
+            })
         };
 
-        Self {
-            handle: handle
-        }
-
+        Self { handle }
     }
 
     /// Change logging level
     /// @export
     pub fn set_level(&mut self, level: String) {
-        let new_spec = LogSpecification::parse(level).unwrap();
-        self.handle.set_new_spec(new_spec);
+        if let Ok(new_spec) = LogSpecification::parse(level) {
+            self.handle.set_new_spec(new_spec);
+        }
     }
 
 }

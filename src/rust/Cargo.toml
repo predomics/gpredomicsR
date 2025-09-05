@@ -14,4 +14,5 @@ gpredomics = { git = "https://github.com/predomics/gpredomics.git", tag="v0.7.2"
 flexi_logger = "0.27"
 chrono = "0.4"
 log = "0.4"
+once_cell = "1"
 #gpredomics = { path = "../../../gpredomics" }

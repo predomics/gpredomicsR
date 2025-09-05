@@ -10,7 +10,7 @@
 #' @param glog_level the verbose level for glog (default: "debug").
 #'
 #' @return A list containing:
-#' \item{rust}{A list with Rust objects: the experiment, parameters, running flag, and logger.}
+#' \item{rust}{A list with Rust objects: the experiment, parameters, and running flag.}
 #' \item{params}{The parameter settings loaded from the YAML file.}
 #' \item{data}{A list with training and testing datasets.}
 #' \item{model_collection}{An R representation of the experiment's model evolution.}
@@ -19,7 +19,7 @@
 #' @details
 #' The function follows these steps:
 #' - Saves the current working directory and switches to the experiment directory.
-#' - Initializes or retrieves a global logger to prevent duplicate loggers.
+#' - Initializes the Rust logger (idempotent; repeated calls are safe).
 #' - Loads parameters from the YAML file.
 #' - Runs the genetic algorithm to generate and evaluate models.
 #' - Constructs and returns an experiment object containing key components.
@@ -44,20 +44,8 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
   # Ensure working directory is restored even if an error occurs
   on.exit(setwd(original.dir), add = TRUE)
   
-  # Try to use an existing global logger, otherwise create a new one
-  if (!exists("global_glog", envir = .GlobalEnv)) {
-    message("Initializing new GLogger instance...")
-    glog_attempt <- tryCatch(GLogger$level(level = glog_level), error = function(e) NULL)
-    
-    if (!is.null(glog_attempt)) {
-      assign("global_glog", glog_attempt, envir = .GlobalEnv)
-    } else {
-      warning("Logger initialization failed. Proceeding without logging.")
-    }
-  }
-  
-  # Get the global logger (even if initialization failed, this avoids re-initialization)
-  glog <- get("global_glog", envir = .GlobalEnv, inherits = FALSE)
+  # Best-effort: ensure Rust logger is initialized and set to requested level (idempotent)
+  try(GLogger$level(level = glog_level), silent = TRUE)
   
   running_flag <- RunningFlag$new()
   
@@ -75,8 +63,7 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
     rust = list(
       experiment = expRust,
       param = paramRust,
-      running_flag = running_flag,
-      glog = glog
+      running_flag = running_flag
     ),
     params = paramRust$get(),
     data = list(
@@ -122,7 +109,7 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
 #' It retrieves parameters, training and test data, and converts the internal 
 #' Rust model collection into an R object.
 #'
-#' @param path Character string. Path to the experiment file (created by Predomics/Gpredomics Rust).
+#' @param path Character string. Path to the experiment file. The supported format depends on the Rust backend (typically a binary such as \code{.bin}; JSON may be supported if enabled backend-side).
 #'
 #' @return A list containing:
 #' \describe{
@@ -148,25 +135,60 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
 load_experiment <- function(path){
   startingTime <- Sys.time()
   
-  expRust <- Experiment$load(path)
+  # Best-effort: ensure logger is initialized on the Rust side; safe no-op if already done
+  try(GLogger$new(), silent = TRUE)
   
-  paramRust <- expRust$get_param()
+  expRust <- tryCatch(
+    Experiment$load(path),
+    error = function(e) stop(sprintf("Failed to load experiment at '%s': %s", path, conditionMessage(e)), call. = FALSE)
+  )
+  
+  paramRust <- tryCatch(
+    expRust$get_param(),
+    error = function(e) stop("Could not get parameters from experiment: ", conditionMessage(e), call. = FALSE)
+  )
+  
+  train <- tryCatch(expRust$get_data_robj(train = TRUE),  error = function(e) NULL)
+  test  <- tryCatch(expRust$get_data_robj(train = FALSE), error = function(e) NULL)
+  
+  model_collection <- tryCatch(
+    parseExperiment(expRust),
+    error = function(e) { warning("parseExperiment failed: ", conditionMessage(e)); NULL }
+  )
   
   experiment <- list(
     rust = list(
       experiment = expRust,
-      param = paramRust#,
-      # running_flag = running_flag,
-      # glog = glog
+      param = paramRust
     ),
-    params = paramRust$get(),
+    params = tryCatch(paramRust$get(), error = function(e) { warning("param$get() failed: ", conditionMessage(e)); NULL }),
     data = list(
-      train = expRust$get_data_robj(train = TRUE),
-      test = expRust$get_data_robj(train = FALSE)
+      train = train,
+      test = test
     ),
-    model_collection = parseExperiment(expRust),  # Convert Rust pointer to R object
+    model_collection = model_collection,  # Convert Rust pointer to R object
     execTime = as.numeric(Sys.time() - startingTime, units = "mins")
   )
+  
+  # Harmonize y types if present (binary -> factor), mirroring runExperiment behavior
+  if (!is.null(experiment$data$train) && !is.null(experiment$data$train$y)) {
+    if (!is.vector(experiment$data$train$y)) {
+      experiment$data$train$y <- as.vector(experiment$data$train$y)
+    }
+    if (length(table(experiment$data$train$y)) == 2) {
+      experiment$data$train$y <- as.factor(experiment$data$train$y)
+    }
+  }
+  if (!is.null(experiment$data$test) && !is.null(experiment$data$test$y)) {
+    if (!is.vector(experiment$data$test$y)) {
+      experiment$data$test$y <- as.vector(experiment$data$test$y)
+    }
+    if (length(table(experiment$data$test$y)) == 2) {
+      experiment$data$test$y <- as.factor(experiment$data$test$y)
+    }
+  }
+  
+  return(experiment)
 }
 
 

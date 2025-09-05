@@ -1245,6 +1245,7 @@ dependencies = [
  "flexi_logger",
  "gpredomics",
  "log",
+ "once_cell",
 ]
 
 [[package]]

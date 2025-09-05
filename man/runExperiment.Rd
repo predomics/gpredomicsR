@@ -20,7 +20,7 @@ Default is \code{"sample/param.yaml"}.}
 }
 \value{
 A list containing:
-\item{rust}{A list with Rust objects: the experiment, parameters, running flag, and logger.}
+\item{rust}{A list with Rust objects: the experiment, parameters, and running flag.}
 \item{params}{The parameter settings loaded from the YAML file.}
 \item{data}{A list with training and testing datasets.}
 \item{model_collection}{An R representation of the experiment's model evolution.}
@@ -35,7 +35,7 @@ algorithm. It returns a structured list containing the experiment results.
 The function follows these steps:
 \itemize{
 \item Saves the current working directory and switches to the experiment directory.
-\item Initializes or retrieves a global logger to prevent duplicate loggers.
+\item Initializes the Rust logger (idempotent; repeated calls are safe).
 \item Loads parameters from the YAML file.
 \item Runs the genetic algorithm to generate and evaluate models.
 \item Constructs and returns an experiment object containing key components.

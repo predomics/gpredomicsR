@@ -7,7 +7,7 @@
 load_experiment(path)
 }
 \arguments{
-\item{path}{Character string. Path to the experiment file (created by Predomics/Gpredomics Rust).}
+\item{path}{Character string. Path to the experiment file. The supported format depends on the Rust backend (typically a binary such as \code{.bin}; JSON may be supported if enabled backend-side).}
 }
 \value{
 A list containing:
