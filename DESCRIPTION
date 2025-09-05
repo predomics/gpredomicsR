@@ -1,6 +1,6 @@
 Package: gpredomicsR
 Title: Analytical Extensions for gpredomics: Enhancing Rust-Based Genetic Prediction in R
-Version: 0.1.3
+Version: 0.1.4
 Authors@R: c(
   person("Edi", "Prifti", email = "edi.prifti@ird.fr", role = c("aut", "cre")),
   person("Raynald", "de Lahondès", email = "raynald.delahondes@gmt.bio", role = "aut"),

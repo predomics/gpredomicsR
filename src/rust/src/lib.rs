@@ -571,10 +571,7 @@ impl Experiment {
     /// @export
     pub fn individual(&self, generation: i32, order:i32) -> Individual {
         if self.intern.collections.len() > 0 {
-                Individual {
-                    intern: self.intern.collections[0][generation as usize].individuals[order as usize].clone(),
-                    features: self.intern.train_data.features.clone()
-            }
+            Individual::new(&self.intern.collections[0][generation as usize].individuals[order as usize], &self.intern.train_data)
         } else {
             panic!("Cannot extract an individual from an experiment without collection")
         }
