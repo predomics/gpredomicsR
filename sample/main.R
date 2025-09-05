@@ -43,6 +43,17 @@ plotBarcode(data = test_data, fixed.scale = FALSE)
 plotBarcode(data = train_data, select_features = c("msp_0937",  "msp_0938",  "msp_0939", "msp_0069", "msp_0005"), fixed.scale = FALSE)
 # plotBarcode(data = test_data, fixed.scale = TRUE)
 
+# extract the final evolved population
+pop.final <- exp$model_collection[[length(exp$model_collection)]] # the final population
+
+# check models
+mod <- pop.final[[1]]
+printy(mod)
+
+# # extract directly the same model from the rust object
+modrust <- exp$rust$experiment$individual(exp$rust$experiment$generation_number()-1,0)$get()
+printy(modrust)
+
 #---------------------------------------------
 # Jury extraction
 #---------------------------------------------

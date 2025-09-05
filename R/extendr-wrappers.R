@@ -120,9 +120,11 @@ Individual <- new.env(parent = emptyenv())
 
 Individual$get <- function() .Call(wrap__Individual__get, self)
 
-Individual$compute_auc <- function(data) invisible(.Call(wrap__Individual__compute_auc, self, data))
+Individual$compute_auc <- function(data) .Call(wrap__Individual__compute_auc, self, data)
 
-Individual$compute_metrics <- function(data) invisible(.Call(wrap__Individual__compute_metrics, self, data))
+Individual$compute_metrics <- function(data) .Call(wrap__Individual__compute_metrics, self, data)
+
+Individual$compute_all <- function(data) .Call(wrap__Individual__compute_all, self, data)
 
 Individual$evaluate <- function(data) .Call(wrap__Individual__evaluate, self, data)
 
@@ -161,6 +163,8 @@ Population <- new.env(parent = emptyenv())
 Population$new <- function() .Call(wrap__Population__new)
 
 Population$get <- function(data) .Call(wrap__Population__get, self, data)
+
+Population$display_feature_prevalence <- function(data, nb_features) invisible(.Call(wrap__Population__display_feature_prevalence, self, data, nb_features))
 
 #' @rdname Population
 #' @usage NULL

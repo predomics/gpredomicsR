@@ -460,6 +460,7 @@ impl Individual {
             ("hash", Robj::from(self.intern.hash)),
             ("epsilon", Robj::from(self.intern.epsilon)),
             ("coefficients", Robj::from(coeff)),
+            ("rust", self.clone().into_robj())
         ];
     
         // Add "parents"
@@ -482,24 +483,38 @@ impl Individual {
         let individual_robj = List::from_pairs(individual_fields);
     
         individual_robj.into_robj()
+
     }
 
 
 
     /// Compute auc for this individual
     /// @export
-    pub fn compute_auc(&mut self, data: &Data) {
-        self.intern.compute_auc(&data.intern);
+    pub fn compute_auc(&mut self, data: &Data) -> Individual {
+        let mut gi = self.clone();
+        gi.intern.compute_auc(&data.intern);
+        gi
     }    
 
     /// Compute threshold/accuracy/sensitivity/specificity for this individual
     /// @export
-    pub fn compute_metrics(&mut self, data: &Data) {
-        let i = &mut self.intern;
-
-        (i.accuracy, i.sensitivity, i.specificity) = 
-                    i.compute_metrics(&data.intern);
+    pub fn compute_metrics(&mut self, data: &Data) -> Individual {
+        let mut gi  = self.clone();
+        let i = &mut gi.intern;
+        (i.accuracy, i.sensitivity, i.specificity) = i.compute_metrics(&data.intern);
+        gi
     }
+
+    /// Compute auc/threshold/accuracy/sensitivity/specificity for this individual
+    /// @export
+    pub fn compute_all(&mut self, data: &Data) -> Individual {
+        let mut gi  = self.clone();
+        gi.intern.compute_auc(&data.intern);
+        let i = &mut gi.intern;
+        (i.accuracy, i.sensitivity, i.specificity) = i.compute_metrics(&data.intern);
+        gi
+    }
+
 
     /// Compute algorithm score
     /// @export
@@ -511,7 +526,6 @@ impl Individual {
     /// @export
     pub fn evaluate_class_and_score(&self, data: &Data) -> Robj {
         let (classes, scores) = self.intern.evaluate_class_and_score(&data.intern);
-        
         list!(class=(classes.iter().map(|x| {*x as i32})).collect::<Vec<i32>>().into_robj(), score=scores.into_robj()).into()
     }
 
@@ -527,6 +541,12 @@ impl Individual {
     pub fn to_string(&self) -> String {
         format!("{:?}",&self.intern)
     }
+
+    // Nicer display of individual (that requires extra stuff)
+    // @export
+    //pub fn display(&data: Data, data_to_test, &param.general.algo, param.general.display_level, param.general.display_colorful)) {
+
+    //}
     
 }
 
@@ -772,6 +792,7 @@ impl Experiment {
 
 /// @export
 #[extendr]
+#[derive(Debug, Clone)]
 pub struct Population {
     intern: GPopulation,
 }
@@ -792,14 +813,19 @@ impl Population {
     pub fn get(&self, data: &Data) -> Robj {
         let individuals = self.intern.individuals
             .iter()
-            .cloned()
-            .map(|gi: GIndividual| Individual::new(&gi, &data.intern).get())
+            .map(|gi: &GIndividual| Individual::new(gi, &data.intern).get())
             .collect::<Vec<Robj>>();
         List::from_pairs(vec![
             ("individuals", Robj::from(individuals)),
+            ("rust", self.clone().into_robj())
         ]).into_robj()
     }
 
+    /// display_feature_prevalence
+    /// @export
+    pub fn display_feature_prevalence(&self, data: &Data, nb_features: usize) {
+        println!("{}",self.intern.display_feature_prevalence(&data.intern, nb_features));
+    }
 }
 
 ///////////////////////////////////////////////////////////////
@@ -808,6 +834,7 @@ impl Population {
 
 /// @export
 #[extendr]
+#[derive(Debug, Clone)]
 pub struct Jury {
     intern: GJury,
 }
@@ -903,6 +930,7 @@ impl Jury {
             ("specificity", Robj::from(self.intern.specificity)),
             ("rejection_rate", Robj::from(self.intern.rejection_rate)),
             ("predicted_classes", predicted_classes),
+            ("rust", self.clone().into_robj())
         ];
 
         let jury_robj = List::from_pairs(jury_fields);
