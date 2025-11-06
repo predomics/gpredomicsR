@@ -2,14 +2,18 @@
 % Please edit documentation in R/extendr-wrappers.R
 \name{fit}
 \alias{fit}
-\title{The simple genetic algorithm (ga) produce a Population from a Param object
-the RunningFlag object is convenient when launching ga in a subthread, it must be
-provided (but you can let it live its own way)}
+\title{Run genetic algorithm}
 \usage{
 fit(param, running_flag)
 }
+\arguments{
+\item{param}{Param object containing experiment configuration}
+
+\item{running_flag}{RunningFlag object to monitor execution}
+}
+\value{
+Experiment object containing notably the resulting Population
+}
 \description{
-The simple genetic algorithm (ga) produce a Population from a Param object
-the RunningFlag object is convenient when launching ga in a subthread, it must be
-provided (but you can let it live its own way)
+The simple genetic algorithm (ga) produce a Population from a Param object. The RunningFlag object is convenient when launching ga in a subthread, it must be provided (but you can let it live its own way)
 }

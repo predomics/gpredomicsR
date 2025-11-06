@@ -10,13 +10,74 @@
 #' @useDynLib gpredomicsR, .registration = TRUE
 NULL
 
-#' The simple genetic algorithm (ga) produce a Population from a Param object
-#' the RunningFlag object is convenient when launching ga in a subthread, it must be
-#' provided (but you can let it live its own way)
+#' @title Run genetic algorithm
+#' @name fit
+#' @description The simple genetic algorithm (ga) produce a Population from a Param object. The RunningFlag object is convenient when launching ga in a subthread, it must be provided (but you can let it live its own way)
+#' @param param Param object containing experiment configuration
+#' @param running_flag RunningFlag object to monitor execution
+#' @return Experiment object containing notably the resulting Population
 #' @export
 fit <- function(param, running_flag) .Call(wrap__fit, param, running_flag)
 
-#' @export 
+#' Create a Gpredomics Data object from an R DataFrame `df` (X) and a named label vector `y`.
+#'
+#' Orientation and alignment:
+#' - If `features_in_columns = true`: rows are samples, columns are features; `names(y)` must match `rownames(df)`.
+#' - If `features_in_columns = false`: columns are samples, rows are features; `names(y)` must match `colnames(df)`.
+#' - Samples are strictly aligned by exact string matching; any mismatch of names triggers an error.
+#' - Internally, X is stored as a sparse map with keys `(sample_idx, feature_idx)`.
+#'
+#' Label handling (`y`):
+#' - Accepts integer, character, or 2-level factor.
+#' - If `y` has exactly two classes:
+#'   - Character or factor: classes are extracted from the actual labels/levels and stored in `Data.classes`.
+#'   - Integer:
+#'     - If values are {0,1}, they are kept as-is (classes = ["0","1"]).
+#'     - If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = [str(a), str(b)]).
+#' - If more than two non-missing classes are present, associated samples are classified as unknown.
+#' - The binary vector `y` is reordered to match the chosen sample order derived from `df`.
+#'
+#' Requirements:
+#' - `df` must be an R data.frame-like object where feature values are numeric/integer/logical.
+#' - All sample names must be provided via `rownames(df)` (if `features_in_columns`) or `colnames(df)` (otherwise).
+#' - `y` must be named with the exact same sample identifiers used on the chosen axis of `df`.
+#'
+#' Behavior on missing or invalid inputs:
+#' - Missing `names(y)`: a warning is emitted; a fallback alignment to the chosen sample order is attempted, but exact names are recommended.
+#' - Non-numeric feature columns (character): error advising to encode to numeric first.
+#' - Column/row length mismatches: error with the offending index and dimensions.
+#' - Any sample without a corresponding label in `y`: error with the sample name.
+#' Errors:
+#' - Detailed, user-facing messages are emitted via R console and returned as `Err(Error::Other(...))`.
+#'
+#' Notes:
+#' - Name normalization is not performed; ensure consistent punctuation (e.g., "-" vs ".") on both `df` and `y`.
+#' - For factors, R’s 1-based codes are mapped to their `levels` to retrieve human-readable class names.
+#' 
+#' @param df R data.frame-like object containing feature values.
+#' @param y_vec R vector containing binary labels, named with sample identifiers.
+#' @param features_in_columns Boolean indicating if features are in columns (`true`) or rows (`false`).
+#' @return Gpredomics Data object with aligned and processed X and y.
+#' @export
+as_gpredomics_data <- function(df, y_vec, features_in_columns) .Call(wrap__as_gpredomics_data, df, y_vec, features_in_columns)
+
+#' @title RunningFlag
+#' @name RunningFlag
+#' @description A struct to manage the running flag for controlling algorithm execution.
+#' 
+#' @details
+#' The RunningFlag object allows you to control the execution of long-running algorithms.
+#' It can be used to stop algorithms gracefully from another thread or after user interruption.
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{new()}}{Create a new RunningFlag (initially set to TRUE).}
+#'   \item{\code{stop()}}{Set the running flag to FALSE to signal algorithm termination.}
+#'   \item{\code{is_running()}}{Check the current value of the running flag (TRUE or FALSE).}
+#'   \item{\code{reset()}}{Reset the running flag to TRUE.}
+#' }
+#' 
+#' @export
 RunningFlag <- new.env(parent = emptyenv())
 
 RunningFlag$new <- function() .Call(wrap__RunningFlag__new)
@@ -35,7 +96,32 @@ RunningFlag$reset <- function() invisible(.Call(wrap__RunningFlag__reset, self))
 #' @export
 `[[.RunningFlag` <- `$.RunningFlag`
 
-#' TODO add a load function to load a new Data (and check_compatibility)
+#' @title Experiment
+#' @name Experiment
+#' @description A global Experiment object that proxies all the different Rust gpredomics objects under the hood
+#' @details 
+#' Experiment encapsulates the entire genetic programming workflow including training data, test data,
+#' parameters, and algorithm results (populations across generations, final population, etc.).
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{individual(generation, order)}}{Retrieves a full description of an individual from a specified generation and order. Parameters: generation (i32 generation index), order (i32 order within generation). Returns Individual object.}
+#'   \item{\code{test_data()}}{Retrieves the test data associated with the experiment. Returns Data object representing the test data.}
+#'   \item{\code{train_data()}}{Retrieves the training data associated with the experiment. Returns Data object representing the training data.}
+#'   \item{\code{get_data_robj(train)}}{Retrieves the data associated with the experiment as an R object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns R object representing the data.}
+#'   \item{\code{get_data(train)}}{Retrieves the data associated with the experiment as a Data object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns Data object.}
+#'   \item{\code{get_generation(generation)}}{Retrieves descriptions of all individuals from a specified generation. Parameter: generation (i32 generation index). Returns R list object encapsulating features and metrics of all individuals in the generation.}
+#'   \item{\code{generation_number()}}{Get the number of generations in the population. Returns number of generations.}
+#'   \item{\code{population_size(generation)}}{Get the size (number of individuals) of a certain generation in a Population. Parameter: generation (i32 generation index). Returns integer size.}
+#'   \item{\code{load_data(x_path, y_path)}}{Load an external dataset to evaluate the model. Parameters: x_path (path to X data file), y_path (path to y data file). Returns Data object containing the loaded data.}
+#'   \item{\code{get_param()}}{Get the param object associated with the experiment. Returns Param object containing the experiment parameters.}
+#'   \item{\code{get_jury()}}{Get the jury object associated with the experiment. Returns Jury object containing the jury details.}
+#'   \item{\code{load(path)}}{Load a serialized experiment. Parameter: path (path to the experiment file). Returns loaded Experiment object.}
+#'   \item{\code{save(path)}}{Save an experiment. Parameter: path (path to save the experiment).}
+#'   \item{\code{get_population(generation)}}{Extract population from experiment, optionally specifying generation number. Parameter: generation (optional generation number, 0-based; if None, returns final population). Returns Population object for the specified generation or final population.}
+#'   \item{\code{address()}}{Get memory address of this Experiment object. Returns string representing the memory address.}
+#'   \item{\code{print()}}{Get print of this Experiment. Returns string representing the Experiment summary.}
+#' }
 #' @export
 Experiment <- new.env(parent = emptyenv())
 
@@ -65,6 +151,12 @@ Experiment$load <- function(path) .Call(wrap__Experiment__load, path)
 
 Experiment$save <- function(path) invisible(.Call(wrap__Experiment__save, self, path))
 
+Experiment$get_population <- function(generation) .Call(wrap__Experiment__get_population, self, generation)
+
+Experiment$address <- function() .Call(wrap__Experiment__address, self)
+
+Experiment$print <- function() .Call(wrap__Experiment__print, self)
+
 #' @rdname Experiment
 #' @usage NULL
 #' @export
@@ -73,7 +165,44 @@ Experiment$save <- function(path) invisible(.Call(wrap__Experiment__save, self, 
 #' @export
 `[[.Experiment` <- `$.Experiment`
 
-#' @export 
+#' @title Param
+#' @name Param
+#' @description Gpredomics parameter object that stores all algorithm settings.
+#' 
+#' @details
+#' The Param object contains all configuration settings for running gpredomics algorithms
+#' including genetic algorithm parameters, data parameters, cross-validation settings, etc.
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{new()}}{Create a new empty Param object.}
+#'   \item{\code{load(file_path)}}{Load a param.yaml file to create a new Param. 
+#'     \itemize{
+#'       \item \code{file_path}: Path to param.yaml file
+#'     }
+#'   }
+#'   \item{\code{get()}}{Returns an R list representing the current state of Param with all settings.}
+#'   \item{\code{set(variable, value)}}{Set a numeric parameter by name.
+#'     \itemize{
+#'       \item \code{variable}: Name of the parameter to set
+#'       \item \code{value}: New numeric value for the parameter
+#'     }
+#'   }
+#'   \item{\code{set_string(variable, string)}}{Set a string parameter by name.
+#'     \itemize{
+#'       \item \code{variable}: Name of the parameter to set
+#'       \item \code{string}: New string value for the parameter
+#'     }
+#'   }
+#'   \item{\code{set_bool(variable, value)}}{Set a boolean parameter by name.
+#'     \itemize{
+#'       \item \code{variable}: Name of the parameter to set
+#'       \item \code{value}: New boolean value for the parameter
+#'     }
+#'   }
+#' }
+#' 
+#' @export
 Param <- new.env(parent = emptyenv())
 
 Param$new <- function() .Call(wrap__Param__new)
@@ -83,6 +212,8 @@ Param$load <- function(file_path) .Call(wrap__Param__load, file_path)
 Param$get <- function() .Call(wrap__Param__get, self)
 
 Param$set <- function(variable, value) invisible(.Call(wrap__Param__set, self, variable, value))
+
+Param$address <- function() .Call(wrap__Param__address, self)
 
 Param$set_string <- function(variable, string) invisible(.Call(wrap__Param__set_string, self, variable, string))
 
@@ -96,6 +227,21 @@ Param$set_bool <- function(variable, value) invisible(.Call(wrap__Param__set_boo
 #' @export
 `[[.Param` <- `$.Param`
 
+#' @title GLogger
+#' @name GLogger
+#' @description An object to handle Logger
+#' @details 
+#' GLogger provides a configurable logging interface for the gpredomics package.
+#' It supports different logging levels (info, debug, error, etc.) and can output
+#' to screen or files with customizable formatting.
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{new()}}{Create a new screen logger with default 'info' level. Returns GLogger object.}
+#'   \item{\code{level(level)}}{Create a new screen logger with specified logging level. Parameter: level (logging level string, e.g., "info", "debug", "error"). Returns GLogger object.}
+#'   \item{\code{get(param)}}{Create a new logger from a Param object containing logging configuration. Parameter: param (Param object containing logging configuration). Returns GLogger object.}
+#'   \item{\code{set_level(level)}}{Change logging level. Parameter: level (new logging level string, e.g., "info", "debug", "error").}
+#' }
 #' @export
 GLogger <- new.env(parent = emptyenv())
 
@@ -115,6 +261,29 @@ GLogger$set_level <- function(level) invisible(.Call(wrap__GLogger__set_level, s
 #' @export
 `[[.GLogger` <- `$.GLogger`
 
+#' @title Individual
+#' @name Individual
+#' @description gpredomicsR proxy object for Individual
+#' @details 
+#' Individual represents a single model from Gpredomics.
+#' It contains features, coefficients, and various performance metrics (AUC, accuracy, sensitivity, specificity).
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{get()}}{Retrieves a full description of an individual, including features and related statistics. Returns an R object containing individual details.}
+#'   \item{\code{compute_auc(data)}}{Compute AUC for this individual on the provided Data object. Returns a new Individual with updated AUC.}
+#'   \item{\code{compute_metrics(data)}}{Compute threshold/accuracy/sensitivity/specificity for this individual on the provided Data object. Returns a new Individual with updated metrics.}
+#'   \item{\code{compute_all(data)}}{Compute auc/threshold/accuracy/sensitivity/specificity for this individual on the provided Data object. Returns a new Individual with updated AUC and metrics.}
+#'   \item{\code{evaluate()}}{Compute individual score. Returns R object containing the individual score.}
+#'   \item{\code{predict_class_and_score(data)}}{Use individual on a data object to provide predicted class and score. Returns a list with two elements: class (predicted class) and score (predicted score).}
+#'   \item{\code{predict(data)}}{Return a list of predicted class for the samples in the data. Returns a vector of predicted classes (0 or 1).}
+#'   \item{\code{to_string()}}{Print the individual. Returns string representation of the Individual.}
+#'   \item{\code{address()}}{Get memory address of this Individual object. Returns string representing the memory address.}
+#'   \item{\code{print()}}{Print as Gpredomics style with detailed formatting.}
+#'   \item{\code{set_threshold(threshold)}}{Set the threshold of the individual.}
+#'   \item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute feature importance for this individual on the provided data. Parameters: n_perm (number of permutations, default 1000), seed (optional seed for random number generation), used_only (whether to compute importance only for features used in the individual, default true). Returns a named numeric vector of feature importances.}
+#'   \item{\code{get_genealogy(experiment, max_depth, include_metrics)}}{Retrieve the genealogy (ancestry tree) of this individual across generations. Parameters: experiment (Experiment object containing all generations), max_depth (maximum depth to traverse, default 10), include_metrics (whether to include AUC/k/generation, default TRUE). Returns a list with nodes and edges data.frames ready for igraph/ggraph visualization. Use with plot_genealogy() helper.}
+#' }
 #' @export
 Individual <- new.env(parent = emptyenv())
 
@@ -126,13 +295,23 @@ Individual$compute_metrics <- function(data) .Call(wrap__Individual__compute_met
 
 Individual$compute_all <- function(data) .Call(wrap__Individual__compute_all, self, data)
 
-Individual$evaluate <- function(data) .Call(wrap__Individual__evaluate, self, data)
+Individual$evaluate <- function() .Call(wrap__Individual__evaluate, self)
 
-Individual$evaluate_class_and_score <- function(data) .Call(wrap__Individual__evaluate_class_and_score, self, data)
+Individual$predict_class_and_score <- function(data) .Call(wrap__Individual__predict_class_and_score, self, data)
 
 Individual$predict <- function(data) .Call(wrap__Individual__predict, self, data)
 
 Individual$to_string <- function() .Call(wrap__Individual__to_string, self)
+
+Individual$address <- function() .Call(wrap__Individual__address, self)
+
+Individual$print <- function() invisible(.Call(wrap__Individual__print, self))
+
+Individual$set_threshold <- function(threshold) invisible(.Call(wrap__Individual__set_threshold, self, threshold))
+
+Individual$compute_importance <- function(data, n_perm, seed, used_only) .Call(wrap__Individual__compute_importance, self, data, n_perm, seed, used_only)
+
+Individual$get_genealogy <- function(experiment, max_depth, include_metrics) .Call(wrap__Individual__get_genealogy, self, experiment, max_depth, include_metrics)
 
 #' @rdname Individual
 #' @usage NULL
@@ -142,12 +321,32 @@ Individual$to_string <- function() .Call(wrap__Individual__to_string, self)
 #' @export
 `[[.Individual` <- `$.Individual`
 
-#' @export 
+#' @title Data
+#' @name Data
+#' @description Gpredomics Data object containing feature matrix and labels.
+#' 
+#' @details
+#' The Data object stores the feature matrix (X), labels (y), sample names, feature names,
+#' and other metadata needed for machine learning algorithms.
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{new()}}{Create a new empty Data object.}
+#'   \item{\code{get()}}{Returns an R list with all Data fields (X, y, features, samples, etc.).}
+#'   \item{\code{address()}}{Get memory address of this Data object as a string.}
+#'   \item{\code{print()}}{Get a formatted string summary of the Data dimensions and content.}
+#' }
+#' 
+#' @export
 Data <- new.env(parent = emptyenv())
 
 Data$new <- function() .Call(wrap__Data__new)
 
 Data$get <- function() .Call(wrap__Data__get, self)
+
+Data$address <- function() .Call(wrap__Data__address, self)
+
+Data$print <- function() .Call(wrap__Data__print, self)
 
 #' @rdname Data
 #' @usage NULL
@@ -157,14 +356,82 @@ Data$get <- function() .Call(wrap__Data__get, self)
 #' @export
 `[[.Data` <- `$.Data`
 
+#' @title Population
+#' @name Population
+#' @description gpredomics Population object
+#' @details 
+#' Population represents a collection of Individuals.
+#' It provides methods to filter, analyze, and manipulate sets of individuals, as well as compute
+#' aggregate predictions and feature importances across the population.
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{get()}}{Get the population associated with the experiment. Returns R object representing the Population.}
+#'   \item{\code{display_feature_prevalence(data, nb_features)}}{Display the prevalence of features in the population. Parameters: data (Data object), nb_features (number of top features to display).}
+#'   \item{\code{predict_scores_matrix(data)}}{Predict all individuals of the population on data and return a dataframe (Rows = samples, Columns = individuals/experts). Parameter: data (Data object to predict on). Returns dataframe with predicted scores.}
+#'   \item{\code{predict_classes_matrix(data)}}{Predict classes for all individuals of the population on data and return a dataframe (Rows = samples, Columns = individuals/experts, Values = predicted classes 0 or 1). Parameter: data (Data object to predict on). Returns dataframe with predicted classes.}
+#'   \item{\code{filter_by_auc(min_auc)}}{Filter population by AUC threshold. Parameter: min_auc (minimum AUC threshold). Returns filtered Population object.}
+#'   \item{\code{filter_by_fit(min_fit)}}{Filter population by fitness threshold. Parameter: min_fit (minimum fit threshold). Returns filtered Population object.}
+#'   \item{\code{filter_by_diversity(min_diversity_pct, by_niche)}}{Filter population by diversity using Jaccard dissimilarity. Parameters: min_diversity_pct (minimum diversity percentage 0-100), by_niche (whether to compute diversity within niches). Returns filtered Population object.}
+#'   \item{\code{filter_by_sensitivity(min_sensitivity)}}{Filter population by sensitivity threshold. Parameter: min_sensitivity (minimum sensitivity threshold). Returns filtered Population object.}
+#'   \item{\code{filter_by_specificity(min_specificity)}}{Filter population by specificity threshold. Parameter: min_specificity (minimum specificity threshold). Returns filtered Population object.}
+#'   \item{\code{filter_by_mask(mask)}}{Filter population using a logical vector (1/0). Parameter: mask (integer vector 1/0 indicating which individuals to keep). Returns filtered Population object.}
+#'   \item{\code{filter_by_k(min_k, max_k)}}{Filter population by number of features (k). Parameters: min_k (minimum number of features), max_k (maximum number of features). Returns filtered Population object.}
+#'   \item{\code{get_fbm(alpha, min_pct_fallback)}}{Get Family of Best Models (FBM) using confidence interval selection. This method selects models with performance statistically equivalent to the best model. Parameters: alpha (confidence level, default 0.05 for 95% confidence), min_pct_fallback (if FBM selection fails, minimum percentage to keep, default 5.0). Returns Population object containing the FBM.}
+#'   \item{\code{fit_on(data, fit_function, k_penalty, thread_number)}}{Recompute fitness metrics for all individuals on new data. Parameters: data (new Data object to fit on), fit_function (fitness function to use: "auc", "mcc", "sensitivity", "specificity"), k_penalty (penalty coefficient for model complexity, default 0.0), thread_number (number of threads to use, default 4).}
+#'   \item{\code{address()}}{Get memory address of this Population object. Returns string representing the memory address.}
+#'   \item{\code{get_individual(index)}}{Get an Individual of a population by index. Parameter: index (index of the individual to retrieve). Returns Individual object at the specified index.}
+#'   \item{\code{print()}}{Get comprehensive print information about the population. Returns string representing the Population summary.}
+#'   \item{\code{from_individuals(individuals)}}{Create a Population from a vector or list of R Individual objects. Parameter: individuals (R vector or list of Individual objects, must have at least one). Returns Population object created from the individuals.}
+#'   \item{\code{extend(other)}}{Extend this population with another population (in-place modification). Parameter: other (another Population object to add).}
+#'   \item{\code{add_individuals(individuals)}}{Add individuals from a vector or list to this population. Parameter: individuals (R vector or list of Individual objects).}
+#'   \item{\code{compute_importance(data, n_perm, aggregation, scaled, seed, compact)}}{Compute full Population-level MDA importances for this Population on given Data. Parameters: data (Data object to compute importances on), n_perm (number of permutations, default 1000), aggregation (aggregation method: "mean" (default) or "median"), scaled (whether to scale importances, default TRUE), seed (random seed for reproducibility, default 4815162342), compact (whether to return a compact vector (TRUE) or full data.frame (FALSE, default)). Returns DataFrame with columns: feature, importance, dispersion, prevalence.}
+#'   \item{\code{compute_importance_matrix(data, n_perm, used_only, seed)}}{Compute full Population-level MDA importance matrix for this Population on given Data. Parameters: data (Data object to compute importances on), n_perm (number of permutations, default 1000), used_only (whether to compute importances only for features used in the population, default TRUE), seed (random seed for reproducibility, default 4815162342). Returns Matrix (data.frame) with rows = features, columns = individuals.}
+#' }
 #' @export
 Population <- new.env(parent = emptyenv())
 
-Population$new <- function() .Call(wrap__Population__new)
-
-Population$get <- function(data) .Call(wrap__Population__get, self, data)
+Population$get <- function() .Call(wrap__Population__get, self)
 
 Population$display_feature_prevalence <- function(data, nb_features) invisible(.Call(wrap__Population__display_feature_prevalence, self, data, nb_features))
+
+Population$predict_scores_matrix <- function(data) .Call(wrap__Population__predict_scores_matrix, self, data)
+
+Population$predict_classes_matrix <- function(data) .Call(wrap__Population__predict_classes_matrix, self, data)
+
+Population$filter_by_auc <- function(min_auc) .Call(wrap__Population__filter_by_auc, self, min_auc)
+
+Population$filter_by_fit <- function(min_fit) .Call(wrap__Population__filter_by_fit, self, min_fit)
+
+Population$filter_by_diversity <- function(min_diversity_pct, by_niche) .Call(wrap__Population__filter_by_diversity, self, min_diversity_pct, by_niche)
+
+Population$filter_by_sensitivity <- function(min_sensitivity) .Call(wrap__Population__filter_by_sensitivity, self, min_sensitivity)
+
+Population$filter_by_specificity <- function(min_specificity) .Call(wrap__Population__filter_by_specificity, self, min_specificity)
+
+Population$filter_by_mask <- function(mask) .Call(wrap__Population__filter_by_mask, self, mask)
+
+Population$filter_by_k <- function(min_k, max_k) .Call(wrap__Population__filter_by_k, self, min_k, max_k)
+
+Population$get_fbm <- function(alpha, min_pct_fallback) .Call(wrap__Population__get_fbm, self, alpha, min_pct_fallback)
+
+Population$fit_on <- function(data, fit_function, k_penalty) invisible(.Call(wrap__Population__fit_on, self, data, fit_function, k_penalty))
+
+Population$address <- function() .Call(wrap__Population__address, self)
+
+Population$get_individual <- function(index) .Call(wrap__Population__get_individual, self, index)
+
+Population$print <- function() .Call(wrap__Population__print, self)
+
+Population$from_individuals <- function(individuals) .Call(wrap__Population__from_individuals, individuals)
+
+Population$extend <- function(other) invisible(.Call(wrap__Population__extend, self, other))
+
+Population$add_individuals <- function(individuals) invisible(.Call(wrap__Population__add_individuals, self, individuals))
+
+Population$compute_importance <- function(data, n_perm, aggregation, scaled, seed, compact) .Call(wrap__Population__compute_importance, self, data, n_perm, aggregation, scaled, seed, compact)
+
+Population$compute_importance_matrix <- function(data, n_perm, used_only, seed) .Call(wrap__Population__compute_importance_matrix, self, data, n_perm, used_only, seed)
 
 #' @rdname Population
 #' @usage NULL
@@ -174,6 +441,28 @@ Population$display_feature_prevalence <- function(data, nb_features) invisible(.
 #' @export
 `[[.Population` <- `$.Population`
 
+#' @title Jury
+#' @name Jury
+#' @description gpredomics Jury object
+#' @details 
+#' Jury represents an ensemble of expert models (a calibrated population) that make predictions
+#' through voting and weighting schemes. It implements various voting methods (majority, consensus)
+#' to aggregate predictions from multiple experts.
+#' 
+#' @section Methods:
+#' \describe{
+#'   \item{\code{new_from_param(population, param)}}{Constructs a Jury object from a population and parameters. Parameters: population (Population of experts to form the Jury), param (Parameters for the Jury). Returns Jury object.}
+#'   \item{\code{evaluate(data)}}{Calibrates the expert population on the training data. Parameter: data (Data object used for calibration).}
+#'   \item{\code{predict_class_and_score(data)}}{Compute class and scores on a new dataset. Parameter: data (Data object used for prediction). Returns a list with two elements: class (integer vector) and score (numeric vector).}
+#'   \item{\code{compute_new_metrics(data)}}{Compute AUC/accuracy/sensitivity/rejection rate on a new dataset. Parameter: data (Data object used for metric computation). Returns a list with computed metrics.}
+#'   \item{\code{display_train(data, param)}}{Display of the Jury with only training data. Parameters: data (Data object used for display), param (Parameters for the Jury). Returns dataframe with training display.}
+#'   \item{\code{display_train_and_test(data, test_data, param)}}{Display of the Jury with training and test data. Parameters: data (Data object used for training display), test_data (Data object used for test display), param (Parameters for the Jury). Returns dataframe with display.}
+#'   \item{\code{get()}}{Returns an R object containing all Jury fields for R interface. Returns list with Jury fields.}
+#'   \item{\code{get_population()}}{Extract the population from the jury (experts). Returns Population object containing the experts.}
+#'   \item{\code{address()}}{Get memory address of this Jury object. Returns string representing the memory address.}
+#'   \item{\code{print()}}{Get summary of this Jury. Returns string representing the Jury summary.}
+#'   \item{\code{from_population(population)}}{Constructs a Jury object from a population using default parameters. Parameter: population (Population of experts). Returns Jury object.}
+#' }
 #' @export
 Jury <- new.env(parent = emptyenv())
 
@@ -181,7 +470,7 @@ Jury$new_from_param <- function(population, param) .Call(wrap__Jury__new_from_pa
 
 Jury$evaluate <- function(data) invisible(.Call(wrap__Jury__evaluate, self, data))
 
-Jury$evaluate_class_and_score <- function(data) .Call(wrap__Jury__evaluate_class_and_score, self, data)
+Jury$predict_class_and_score <- function(data) .Call(wrap__Jury__predict_class_and_score, self, data)
 
 Jury$compute_new_metrics <- function(data) .Call(wrap__Jury__compute_new_metrics, self, data)
 
@@ -189,7 +478,15 @@ Jury$display_train <- function(data, param) .Call(wrap__Jury__display_train, sel
 
 Jury$display_train_and_test <- function(data, test_data, param) .Call(wrap__Jury__display_train_and_test, self, data, test_data, param)
 
-Jury$get <- function(data) .Call(wrap__Jury__get, self, data)
+Jury$get <- function() .Call(wrap__Jury__get, self)
+
+Jury$get_population <- function() .Call(wrap__Jury__get_population, self)
+
+Jury$address <- function() .Call(wrap__Jury__address, self)
+
+Jury$print <- function() .Call(wrap__Jury__print, self)
+
+Jury$from_population <- function(population, threshold, window) .Call(wrap__Jury__from_population, population, threshold, window)
 
 #' @rdname Jury
 #' @usage NULL

@@ -1278,3 +1278,94 @@ plot_population_heatmap <- function(exp,
   invisible(res)
 }
 
+#' Plot a precomputed genealogy
+#'
+#' @param td A list with components $nodes, $edges, $metadata as returned by Individual$get_genealogy_vis().
+#' @param layout Character: "tree" (default), "kk", "fr", "dendrogram", "circle".
+#' @param node_size_base Numeric base size for nodes (default 2).
+#' @param text_repel Logical, use repel labels (default TRUE).
+#' @return A ggraph plot object.
+#' @export
+plot_genealogy <- function(td, layout = "tree", node_size_base = 2, text_repel = TRUE) {
+  if (is.null(td) || is.null(td$nodes) || is.null(td$edges)) {
+    stop("`td` must be a list with $nodes and $edges as returned by get_genealogy_vis().")
+  }
+  nodes <- td$nodes
+  edges <- td$edges
+
+  if (!"name" %in% names(nodes)) {
+    if ("id" %in% names(nodes)) {
+      names(nodes)[names(nodes) == "id"] <- "name"
+    } else {
+      stop("Nodes need a 'name' or 'id' column.")
+    }
+  }
+  nodes$name <- as.character(nodes$name)
+  if ("label" %in% names(nodes)) nodes$label <- as.character(nodes$label)
+
+  if (!all(c("from","to") %in% names(edges))) {
+    stop("Edges need 'from' and 'to' columns.")
+  }
+  edges$from <- as.character(edges$from)
+  edges$to   <- as.character(edges$to)
+
+  used_ids <- unique(c(edges$from, edges$to))
+  missing  <- setdiff(used_ids, nodes$name)
+  if (length(missing) > 0) {
+    add <- data.frame(
+      name       = missing,
+      label      = missing,
+      auc        = NA_real_,
+      k          = NA_integer_,
+      generation = NA_integer_,
+      stringsAsFactors = FALSE
+    )
+    for (cn in setdiff(names(add), names(nodes))) nodes[[cn]] <- NA
+    for (cn in setdiff(names(nodes), names(add))) add[[cn]] <- NA
+    nodes <- rbind(nodes[names(add)], add)
+  }
+
+  g <- igraph::graph_from_data_frame(
+    d = edges[, c("from","to", setdiff(names(edges), c("from","to"))), drop = FALSE],
+    vertices = nodes,
+    directed = TRUE
+  )
+
+  lay <- match.arg(layout, c("tree","kk","fr","dendrogram","circle"))
+  if ("k" %in% names(nodes)) {
+    nodes$k[is.na(nodes$k)] <- 0L
+  }
+
+  p <- ggraph::ggraph(g, layout = lay) +
+    ggraph::geom_edge_link(
+      arrow   = grid::arrow(length = grid::unit(2, "mm")),
+      end_cap = ggraph::circle(3, "mm"),
+      alpha   = 0.5, colour = "grey55"
+    ) +
+    ggraph::geom_node_point(ggplot2::aes(color = .data$auc, size = .data$k)) +
+    ggplot2::scale_color_viridis_c(name = "AUC", option = "C", na.value = "grey80") +
+    ggplot2::scale_size_continuous(name = "k", range = c(node_size_base, node_size_base * 3)) +
+    ggraph::theme_graph(base_family = "sans") +
+    ggplot2::labs(
+      title = paste("Genealogy", if (!is.null(td$metadata$root_id)) paste("of", td$metadata$root_id) else ""),
+      x = NULL, y = NULL
+    )
+    
+  if ("label" %in% names(nodes)) {
+    if (text_repel) {
+      p <- p + ggraph::geom_node_text(
+        ggplot2::aes(label = .data$label),
+        repel = TRUE, size = 3, bg.color = "white", segment.color = "grey60"
+      )
+    } else {
+      p <- p + ggraph::geom_node_text(ggplot2::aes(label = .data$label), size = 3, vjust = -1)
+    }
+  }
+
+  p <- p + ggplot2::guides(
+    color = ggplot2::guide_colorbar(barheight = 6, barwidth = 0.4),
+    size  = ggplot2::guide_legend(override.aes = list(color = "grey30"))
+  )
+
+  return(p)
+}

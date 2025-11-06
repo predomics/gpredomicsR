@@ -4,14 +4,40 @@
 \name{Experiment}
 \alias{Experiment}
 \alias{$.Experiment}
-\title{TODO add a load function to load a new Data (and check_compatibility)}
+\title{Experiment}
 \format{
-An object of class \code{environment} of length 13.
+An object of class \code{environment} of length 16.
 }
 \usage{
 Experiment
 }
 \description{
-TODO add a load function to load a new Data (and check_compatibility)
+A global Experiment object that proxies all the different Rust gpredomics objects under the hood
 }
+\details{
+Experiment encapsulates the entire genetic programming workflow including training data, test data,
+parameters, and algorithm results (populations across generations, final population, etc.).
+}
+\section{Methods}{
+
+\describe{
+\item{\code{individual(generation, order)}}{Retrieves a full description of an individual from a specified generation and order. Parameters: generation (i32 generation index), order (i32 order within generation). Returns Individual object.}
+\item{\code{test_data()}}{Retrieves the test data associated with the experiment. Returns Data object representing the test data.}
+\item{\code{train_data()}}{Retrieves the training data associated with the experiment. Returns Data object representing the training data.}
+\item{\code{get_data_robj(train)}}{Retrieves the data associated with the experiment as an R object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns R object representing the data.}
+\item{\code{get_data(train)}}{Retrieves the data associated with the experiment as a Data object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns Data object.}
+\item{\code{get_generation(generation)}}{Retrieves descriptions of all individuals from a specified generation. Parameter: generation (i32 generation index). Returns R list object encapsulating features and metrics of all individuals in the generation.}
+\item{\code{generation_number()}}{Get the number of generations in the population. Returns number of generations.}
+\item{\code{population_size(generation)}}{Get the size (number of individuals) of a certain generation in a Population. Parameter: generation (i32 generation index). Returns integer size.}
+\item{\code{load_data(x_path, y_path)}}{Load an external dataset to evaluate the model. Parameters: x_path (path to X data file), y_path (path to y data file). Returns Data object containing the loaded data.}
+\item{\code{get_param()}}{Get the param object associated with the experiment. Returns Param object containing the experiment parameters.}
+\item{\code{get_jury()}}{Get the jury object associated with the experiment. Returns Jury object containing the jury details.}
+\item{\code{load(path)}}{Load a serialized experiment. Parameter: path (path to the experiment file). Returns loaded Experiment object.}
+\item{\code{save(path)}}{Save an experiment. Parameter: path (path to save the experiment).}
+\item{\code{get_population(generation)}}{Extract population from experiment, optionally specifying generation number. Parameter: generation (optional generation number, 0-based; if None, returns final population). Returns Population object for the specified generation or final population.}
+\item{\code{address()}}{Get memory address of this Experiment object. Returns string representing the memory address.}
+\item{\code{print()}}{Get print of this Experiment. Returns string representing the Experiment summary.}
+}
+}
+
 \keyword{datasets}

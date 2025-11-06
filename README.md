@@ -45,11 +45,10 @@ exp.results <- parseExperiment(exp)
 
 ## Analyzing the results
 ```R
-# get the resulting attributes from all the evolve modesl
+# get the resulting attributes from all the evolve models
 perf.df <- analyzeEvolution(exp, attributes = c("auc", "fit", "k", "n"), plot = FALSE)
 analyzeEvolution(exp, attributes = c("auc", "fit", "k", "n"), plot = TRUE)
 analyzeEvolutionAllModels(exp, attributes = c("auc", "fit", "k", "n"), plot = TRUE)
-  
 ```
 
 NB: you can additionally setup a GLogger object to add some display of info during ga() call
@@ -61,10 +60,24 @@ NB3: once created the verbosity level can be adjusted with : `glog$set_level("wa
 
 *NEW*
 
-- you may directly set a logger at a correct level `glog$set_level("trace")`
-- you may use `ga/ga2/ga_no_overfit/ga2_no_overfit` sub algorithms of the `ga` family
-- you may get all individuals at once in a a generation with `pop$get_all_individuals(98)` (which will give you a Dataframe of all the individuals) 
+- You may directly set a logger at a specific level using `glog$set_level("trace")`.
+- You may use `ga/ga2/ga_no_overfit/ga2_no_overfit` sub-algorithms of the `ga` family.
+- You may get all individuals at once in a generation with `pop$get_all_individuals(98)` (which will give you a DataFrame of all the individuals).
 
 ## GPU usage
 
-You should have GPU set to true (directly in param.yaml or with `param$set_bool("gpu",TRUE)`). You may need additional libraries (Apple Silicons are natively supported by WGPU which gpredomics is using, Linux needs Vulkan libraries, with drivers, see gpredomics README.md for details).
+You should have GPU set to true (directly in param.yaml or with `param$set_bool("gpu",TRUE)`). You may need additional libraries:
+- **Apple Silicon**: Natively supported by WGPU which gpredomics is using.
+- **Linux**: Requires Vulkan libraries and drivers (see gpredomics README.md for details).
+
+## Parallelization
+
+To control the number of threads used by certain computationally intensive methods (e.g., `Population$compute_importance_matrix()`, `Population$fit_on()`), you can set the `gpredomics.threads.number` R option. 
+
+### Example
+
+In R, you can set the number of threads for parallelization as follows:
+```R
+options(gpredomics.threads.number = 4)
+```
+This example sets the number of threads to 4. Adjust the value based on your system's capabilities. For fit, if the option is not set, the package will use the number of available CPU cores or fall back to the value from `param.yaml`.
