@@ -27,12 +27,25 @@ check.X_y(X, y)
 # ---- Step 2: Generate Mock Models with Valid Feature Indexes ----
 generateMockModel <- function(id) {
   num_selected_features <- sample(2:5, 1)  # Number of selected features
-  
+
+  # Ensure we sample feature names (rows of X) and indices within feature range
+  feature_names <- if (!is.null(rownames(X))) rownames(X) else paste0("F", seq_len(nrow(X)))
+  feature_indices <- seq_len(nrow(X))
+
+  sel_idx <- sample(feature_indices, num_selected_features)
+  sel_feats <- feature_names[sel_idx]
+  sel_coeffs <- sample(c(-1, 1), num_selected_features, replace = TRUE)
+
+  # Provide both 'coeff' (used by many helpers) and 'coefficients' (checked by isModel())
+  coeff_named <- sel_coeffs
+  names(coeff_named) <- sel_feats
+
   list(
-    features = sample(colnames(X), num_selected_features),  # Valid feature names
-    coeff = sample(c(-1, 1), num_selected_features, replace = TRUE),  # Coefficients
-    indexes = sample(seq_len(ncol(X)), num_selected_features),  # Valid feature indices
-    k = sample(1:5, 1),
+    features = sel_feats,                    # Selected feature names
+    coeff = sel_coeffs,                      # Coefficients vector (short)
+    coefficients = coeff_named,              # Named coefficients (for isModel())
+    indexes = sel_idx,                       # Feature indices (1..nrow(X))
+    k = length(sel_idx),
     auc = runif(1, 0.5, 1),
     epoch = sample(50:100, 1),
     fit = runif(1, 0.7, 0.99),
@@ -44,13 +57,16 @@ generateMockModel <- function(id) {
     data_type = sample(c("Log", "Linear"), 1),
     data_type_minimum = runif(1, 1e-5, 1e-3),
     hash = sprintf("%019.0f", runif(1, 1e18, 1e19)),
-    eval.sparsity = sample(1:10, 1)
+    eval.sparsity = sample(1:10, 1),
+    parents = list()
   )
 }
 
 # Create a mock population (10 models)
 mock_population <- lapply(1:10, generateMockModel)
-mock_experiment <- list(mock_population, mock_population, mock_population)  # 3 generations
+mock_experiment <- list(
+  model_collection = list(mock_population, mock_population, mock_population)  # 3 generations
+)  
 
 # ---- Step 3: Run the Test Suite ----
 test_that("isModel() works correctly", {
@@ -123,7 +139,7 @@ test_that("populationGet_X() extracts attributes correctly", {
 
 # ---- Test modelToDenseVec() ----
 test_that("modelToDenseVec() correctly converts a model to a dense vector", {
-  natts <- ncol(X)
+  natts <- nrow(X)
   dense_vec <- modelToDenseVec(natts, mock_population[[1]])
   
   expect_true(is.numeric(dense_vec))

@@ -1,6 +1,9 @@
 /target
-*.Rproj
 .Rproj.user
-*.DS_Store
 .RData
 .Rhistory
+*.Rproj
+*.DS_Store
+*.json
+*.mp
+.*

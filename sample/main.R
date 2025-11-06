@@ -26,7 +26,6 @@ exp$rust$experiment$save("sample/test_experiment.mp")
 exp2 <- load_experiment("sample/test_experiment.mp")
 
 tmp <- exp$rust$experiment$get_data(train = TRUE)$get()
-Experiment$get_data()
 
 #---------------------------------------------
 # Data extraction
@@ -54,6 +53,11 @@ printy(mod)
 modrust <- exp$rust$experiment$individual(exp$rust$experiment$generation_number()-1,0)$get()
 printy(modrust)
 
+# compute and display genealogy 
+ind <- exp$rust$experiment$individual(10, 10)
+genealogy <- ind$get_genealogy(exp$rust$experiment, 5, TRUE)
+plot_genealogy(genealogy, layout="tree")
+
 #---------------------------------------------
 # Jury extraction
 #---------------------------------------------
@@ -64,17 +68,17 @@ rust_test <- exp$rust$experiment$get_data(train = FALSE)
 # Evaluate on Train Data
 jury$evaluate(rust_train)
 
-# Get R object (data is simply used to obtain the names of the features and does not influence the jury object)
-jury$get(rust_train) 
-jury$get(rust_test)
+# Get R object 
+jury_data <- jury$get()  
+print(jury_data)
 
 # Get Jury metrics on a specific dataset
 jury$compute_new_metrics(rust_train)
 jury$compute_new_metrics(rust_test)
 
 # Get Jury class and scores on a specific dataset
-jury$evaluate_class_and_score(rust_train)
-jury$evaluate_class_and_score(rust_test)
+jury$predict_class_and_score(rust_train)
+jury$predict_class_and_score(rust_test)
 
 # Print Jury
 jury$display_train(rust_train, exp$rust$param)

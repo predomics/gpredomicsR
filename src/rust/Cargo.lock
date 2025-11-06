@@ -1238,7 +1238,7 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
 name = "rgpredomicsR"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "chrono",
  "extendr-api",
@@ -1246,6 +1246,8 @@ dependencies = [
  "gpredomics",
  "log",
  "once_cell",
+ "rand_chacha",
+ "rayon",
 ]
 
 [[package]]
