@@ -6,34 +6,45 @@
 \alias{$.Individual}
 \title{Individual}
 \format{
-An object of class \code{environment} of length 13.
+An object of class \code{environment} of length 16.
 }
 \usage{
 Individual
 }
 \description{
-gpredomicsR proxy object for Individual
+A single predictive model from the Gpredomics algorithm
 }
 \details{
-Individual represents a single model from Gpredomics.
-It contains features, coefficients, and various performance metrics (AUC, accuracy, sensitivity, specificity).
+Individual represents a single model (individual) in the population.
+It contains:
+\itemize{
+\item Feature set with coefficients (sparse representation)
+\item Performance metrics (AUC, accuracy, sensitivity, specificity, fit value)
+\item Optional threshold confidence interval and rejection rate
+\item Optional beta coefficients for certain model types
+\item Optional additional metrics (MCC, NPV, PPV, F1-score, G-mean)
+\item Genealogical information (parents, generation/epoch)
+}
 }
 \section{Methods}{
 
 \describe{
-\item{\code{get()}}{Retrieves a full description of an individual, including features and related statistics. Returns an R object containing individual details.}
-\item{\code{compute_auc(data)}}{Compute AUC for this individual on the provided Data object. Returns a new Individual with updated AUC.}
-\item{\code{compute_metrics(data)}}{Compute threshold/accuracy/sensitivity/specificity for this individual on the provided Data object. Returns a new Individual with updated metrics.}
-\item{\code{compute_all(data)}}{Compute auc/threshold/accuracy/sensitivity/specificity for this individual on the provided Data object. Returns a new Individual with updated AUC and metrics.}
-\item{\code{evaluate()}}{Compute individual score. Returns R object containing the individual score.}
-\item{\code{predict_class_and_score(data)}}{Use individual on a data object to provide predicted class and score. Returns a list with two elements: class (predicted class) and score (predicted score).}
-\item{\code{predict(data)}}{Return a list of predicted class for the samples in the data. Returns a vector of predicted classes (0 or 1).}
-\item{\code{to_string()}}{Print the individual. Returns string representation of the Individual.}
-\item{\code{address()}}{Get memory address of this Individual object. Returns string representing the memory address.}
-\item{\code{print()}}{Print as Gpredomics style with detailed formatting.}
-\item{\code{set_threshold(threshold)}}{Set the threshold of the individual.}
-\item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute feature importance for this individual on the provided data. Parameters: n_perm (number of permutations, default 1000), seed (optional seed for random number generation), used_only (whether to compute importance only for features used in the individual, default true). Returns a named numeric vector of feature importances.}
-\item{\code{get_genealogy(experiment, max_depth, include_metrics)}}{Retrieve the genealogy (ancestry tree) of this individual across generations. Parameters: experiment (Experiment object containing all generations), max_depth (maximum depth to traverse, default 10), include_metrics (whether to include AUC/k/generation, default TRUE). Returns a list with nodes and edges data.frames ready for igraph/ggraph visualization. Use with plot_genealogy() helper.}
+\item{\code{get()}}{Get complete individual description including all fields and metrics}
+\item{\code{get_metrics()}}{Get base metrics (AUC, fit, accuracy, sensitivity, specificity, threshold, rejection_rate)}
+\item{\code{compute_metrics(data)}}{Compute all metrics including additional ones (MCC, NPV, PPV, F1-score, G-mean) on new data}
+\item{\code{predict(data)}}{Predict classes and scores for samples in the provided Data object}
+\item{\code{fit(data, param)}}{Refit individual on new data with complete metric computation including penalties}
+\item{\code{refit()}}{Refit individual on its associated data using complete Gpredomics logic}
+\item{\code{evaluate()}}{Compute prediction scores on associated data}
+\item{\code{to_string()}}{Get debug string representation}
+\item{\code{address()}}{Get memory address as hexadecimal string}
+\item{\code{print()}}{Print formatted individual summary to console}
+\item{\code{set_threshold(threshold)}}{Set prediction threshold for binary classification}
+\item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute OOB permutation feature importance}
+\item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Remove low-importance features using absolute threshold}
+\item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Remove low-importance features using quantile threshold}
+\item{\code{get_genealogy(experiment, max_depth)}}{Retrieve ancestry tree across generations for visualization}
+\item{\code{explain_sample(data, sample_index)}}{Explain individual prediction for one sample with feature contributions. Parameters: data (Data object), sample_index (1-based R index). Returns data.frame with Feature, Value, Coefficient, Contribution, CumScore.}
 }
 }
 

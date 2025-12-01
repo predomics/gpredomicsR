@@ -12,19 +12,10 @@ plotFeatureModelCoeffs(
   vertical.label = TRUE,
   log.scale = FALSE
 )
-
-plotFeatureModelCoeffs(
-  feat.model.coeffs,
-  topdown = TRUE,
-  main = "",
-  col = c("deepskyblue1", "white", "firebrick1"),
-  vertical.label = TRUE,
-  log.scale = FALSE
-)
 }
 \arguments{
-\item{feat.model.coeffs}{A numeric \strong{matrix} where rows are \strong{features},
-columns are \strong{models}, and values represent the coefficients.}
+\item{feat.model.coeffs}{A numeric matrix or data frame where \strong{rows} represent
+features, \strong{columns} represent models, and values represent the feature coefficients.}
 
 \item{topdown}{Logical; if \code{TRUE}, features are sorted from \strong{top to bottom} (default: \code{TRUE}).}
 
@@ -34,33 +25,17 @@ columns are \strong{models}, and values represent the coefficients.}
 
 \item{vertical.label}{Logical; if \code{TRUE}, feature labels are \strong{rotated vertically} (default: \code{TRUE}).}
 
-\item{log.scale}{Logical; if \code{TRUE}, \strong{log transformation} is applied to coefficients (default: \code{FALSE}).}
+\item{log.scale}{Logical; if \code{TRUE}, \strong{log transformation} is applied to the coefficients (default: \code{FALSE}).}
 }
 \value{
-A \code{ggplot2} object displaying the heatmap of feature coefficients.
-
 A \code{ggplot2} object displaying the heatmap of feature coefficients.
 }
 \description{
 This function visualizes the coefficients of features across different models
 in a heatmap. The colors represent positive, negative, and zero coefficients.
 It supports sorting features, rotating axis labels, and using log scaling.
-
-This function visualizes the coefficients of features across different models
-in a heatmap. It supports sorting features, rotating labels, and displaying
-coefficients in \strong{log scale} when needed.
 }
 \examples{
-# Example usage
-features <- c("feature1", "feature2", "feature3")
-models <- c("model1", "model2", "model3")
-coeffs <- matrix(runif(9, -1, 1), nrow = 3, ncol = 3)
-rownames(coeffs) <- features
-colnames(coeffs) <- models
-
-# Plot feature model coefficients
-plotFeatureModelCoeffs(coeffs, main = "Feature Coefficients Heatmap", log.scale = TRUE)
-
 # Example usage
 features <- c("feature1", "feature2", "feature3")
 models <- c("model1", "model2", "model3")

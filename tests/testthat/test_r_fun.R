@@ -164,3 +164,122 @@ test_that("listOfModelsToDenseCoefMatrix() correctly builds a dense coefficient 
   expect_equal(ncol(dense_matrix), length(mock_population))  # Models as columns
   expect_equal(nrow(dense_matrix), length(unique(extracted_indexes)))  # Features as rows
 })
+
+# ---- Test isExperiment() ----
+test_that("isExperiment() correctly validates experiment objects", {
+  # Valid experiment
+  valid_experiment <- list(
+    rust = list(),
+    params = list(),
+    data = list(),
+    model_collection = mock_experiment$model_collection,
+    execTime = 123.45
+  )
+  expect_true(isExperiment(valid_experiment))
+  
+  # Invalid experiments
+  expect_false(isExperiment(NULL))
+  expect_false(isExperiment(list(a = 1, b = 2)))
+  expect_false(isExperiment(mock_population))
+})
+
+# ---- Test check.X_y() ----
+test_that("check.X_y() validates X and y dimensions correctly", {
+  # Valid case
+  expect_silent(check.X_y(X, y))
+  
+  # Invalid cases
+  expect_error(check.X_y(X, c(0, 1)))  # Wrong length
+  expect_error(check.X_y(as.vector(X), y))  # Not a matrix/dataframe
+})
+
+# ---- Test filterfeaturesK() ----
+test_that("filterfeaturesK() selects top k features", {
+  # Classification mode
+  result <- filterfeaturesK(X, y, k = 5, type = "wilcoxon")
+  expect_true(is.data.frame(result))
+  expect_equal(nrow(result), 5)
+  expect_true(all(c("p", "q", "status") %in% colnames(result)))
+  
+  # Regression mode
+  y_numeric <- rnorm(num_samples)
+  result_reg <- filterfeaturesK(X, y_numeric, k = 5, type = "spearman")
+  expect_true(is.data.frame(result_reg))
+  expect_true(all(c("p", "q", "rho", "rho2") %in% colnames(result_reg)))
+  
+  # Return filtered data
+  filtered_data <- filterfeaturesK(X, y, k = 10, return.data = TRUE)
+  expect_true(is.matrix(filtered_data))
+  expect_equal(nrow(filtered_data), 10)
+})
+
+# ---- Test getFeaturePrevalence() ----
+test_that("getFeaturePrevalence() computes prevalence correctly", {
+  features_to_test <- rownames(X)[1:5]
+  
+  # Without class labels
+  prev_all <- getFeaturePrevalence(features_to_test, X)
+  expect_true(is.list(prev_all))
+  expect_true("all" %in% names(prev_all))
+  expect_equal(length(prev_all$all), 5)
+  
+  # With class labels
+  prev_by_class <- getFeaturePrevalence(features_to_test, X, y = y)
+  expect_true(all(c("all", "0", "1") %in% names(prev_by_class)))
+  
+  # Using numeric indices
+  prev_indices <- getFeaturePrevalence(1:5, X)
+  expect_equal(length(prev_indices$all), 5)
+})
+
+# ---- Test computeCardEnrichment() ----
+test_that("computeCardEnrichment() computes Chi-Square enrichment", {
+  # Create cardinality matrix
+  v.card.mat <- matrix(c(30, 50, 20, 60), nrow = 2, byrow = TRUE)
+  rownames(v.card.mat) <- c("0", "1")
+  colnames(v.card.mat) <- c("feature1", "feature2")
+  
+  result <- computeCardEnrichment(v.card.mat, y)
+  
+  expect_true(is.list(result))
+  expect_true(all(c("card.all", "chisq.p", "chisq.q", "v.card.mat", "y") %in% names(result)))
+  expect_equal(length(result$chisq.p), 2)
+  expect_equal(length(result$chisq.q), 2)
+})
+
+# ---- Test as.gpredomics.data() ----
+test_that("as.gpredomics.data() creates valid Data object", {
+  # Prepare test data (features in columns, samples in rows)
+  X_df <- as.data.frame(t(X))  # Transpose so samples are in rows
+  y_named <- y
+  names(y_named) <- colnames(X)
+  
+  # Basic usage
+  data <- as.gpredomics.data(X_df, y_named, features.in.columns = TRUE)
+  expect_true(!is.null(data))
+  expect_true("gpredomics_data" %in% class(data))
+  
+  # With prior weights
+  prior_weights <- setNames(runif(nrow(X), 0.5, 2.0), rownames(X))
+  data_with_prior <- as.gpredomics.data(
+    X_df, 
+    y_named, 
+    features.in.columns = TRUE,
+    prior.weight = prior_weights
+  )
+  expect_true(!is.null(data_with_prior))
+  
+  # With feature penalties
+  feature_penalties <- setNames(runif(nrow(X), 0, 0.5), rownames(X))
+  data_with_penalty <- as.gpredomics.data(
+    X_df, 
+    y_named, 
+    features.in.columns = TRUE,
+    feature.penalty = feature_penalties
+  )
+  expect_true(!is.null(data_with_penalty))
+  
+  # Error cases
+  expect_error(as.gpredomics.data())  # Missing arguments
+  expect_error(as.gpredomics.data(X_df, c(0, 1)))  # y not named
+})

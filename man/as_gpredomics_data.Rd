@@ -4,7 +4,15 @@
 \alias{as_gpredomics_data}
 \title{Create a Gpredomics Data object from an R DataFrame \code{df} (X) and a named label vector \code{y}.}
 \usage{
-as_gpredomics_data(df, y_vec, features_in_columns)
+as_gpredomics_data(
+  df,
+  y_vec,
+  features_in_columns,
+  prior_weight,
+  feature_penalty,
+  feature_tags,
+  sample_tags
+)
 }
 \arguments{
 \item{df}{R data.frame-like object containing feature values.}
@@ -12,6 +20,14 @@ as_gpredomics_data(df, y_vec, features_in_columns)
 \item{y_vec}{R vector containing binary labels, named with sample identifiers.}
 
 \item{features_in_columns}{Boolean indicating if features are in columns (\code{true}) or rows (\code{false}).}
+
+\item{prior_weight}{Named numeric vector: feature name -> prior weight (optional)}
+
+\item{feature_penalty}{Named numeric vector: feature name -> penalty (optional)}
+
+\item{feature_tags}{R data.frame with feature annotations (optional)}
+
+\item{sample_tags}{R data.frame with sample metadata (optional)}
 }
 \value{
 Gpredomics Data object with aligned and processed X and y.
