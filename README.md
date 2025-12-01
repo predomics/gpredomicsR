@@ -19,7 +19,7 @@ devtools::install()
 
 # Or build then install separately
 devtools::build(".")
-install.packages("../gpredomicsR_0.1.6.tar.gz", repos = NULL, type = "source")
+install.packages("../gpredomicsR_0.1.7.tar.gz", repos = NULL, type = "source")
 ```
 
 ## System Requirements
