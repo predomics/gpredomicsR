@@ -46,6 +46,7 @@ including genetic algorithm parameters, data parameters, cross-validation settin
 \item \code{value}: New boolean value for the parameter
 }
 }
+\item{\code{address()}}{Get memory address of this Param object as a string.}
 }
 }
 

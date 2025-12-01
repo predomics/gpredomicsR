@@ -11,6 +11,15 @@
   registerS3method("print", "Population", print.Population)
   registerS3method("print", "Jury", print.Jury)
   registerS3method("print", "Experiment", print.Experiment)
+  registerS3method("print", "Param", print.Param)
+  
+  op <- options()
+  op.gpredomics <- list(
+    gpredomics.threads.number = 4
+  )
+  toset <- !(names(op.gpredomics) %in% names(op))
+  if (any(toset)) options(op.gpredomics[toset])
+  invisible()
 }
 
 #' @export
@@ -43,3 +52,9 @@ print.Experiment <- function(x, ...) {
   invisible(x)
 }
 
+#' @export
+print.Param <- function(x, ...) {
+  cat(x$address(), "\n")
+  print(x$get())
+  invisible(x)
+}

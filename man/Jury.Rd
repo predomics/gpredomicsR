@@ -6,7 +6,7 @@
 \alias{$.Jury}
 \title{Jury}
 \format{
-An object of class \code{environment} of length 11.
+An object of class \code{environment} of length 12.
 }
 \usage{
 Jury
@@ -23,16 +23,17 @@ to aggregate predictions from multiple experts.
 
 \describe{
 \item{\code{new_from_param(population, param)}}{Constructs a Jury object from a population and parameters. Parameters: population (Population of experts to form the Jury), param (Parameters for the Jury). Returns Jury object.}
-\item{\code{evaluate(data)}}{Calibrates the expert population on the training data. Parameter: data (Data object used for calibration).}
-\item{\code{predict_class_and_score(data)}}{Compute class and scores on a new dataset. Parameter: data (Data object used for prediction). Returns a list with two elements: class (integer vector) and score (numeric vector).}
-\item{\code{compute_new_metrics(data)}}{Compute AUC/accuracy/sensitivity/rejection rate on a new dataset. Parameter: data (Data object used for metric computation). Returns a list with computed metrics.}
-\item{\code{display_train(data, param)}}{Display of the Jury with only training data. Parameters: data (Data object used for display), param (Parameters for the Jury). Returns dataframe with training display.}
-\item{\code{display_train_and_test(data, test_data, param)}}{Display of the Jury with training and test data. Parameters: data (Data object used for training display), test_data (Data object used for test display), param (Parameters for the Jury). Returns dataframe with display.}
+\item{\code{from_population(population, threshold, window)}}{Create a Jury directly from a Population without applying any filters. Parameters: population (Population to use as experts), threshold (Voting threshold, default 0.5), window (Threshold window percentage, default 5.0). Returns Jury object.}
 \item{\code{get()}}{Returns an R object containing all Jury fields for R interface. Returns list with Jury fields.}
+\item{\code{get_metrics()}}{Get the base metrics already computed and stored in this Jury (AUC, accuracy, sensitivity, specificity, rejection_rate). No data required, no computation. Returns a list with base metrics only.}
+\item{\code{compute_metrics(data)}}{Compute all metrics (base + additional: MCC, NPV, PPV, F1-score, G-mean) on the provided Data object. Returns a list with all computed metrics.}
+\item{\code{predict(data)}}{Predict classes and scores on the provided Data object. Returns a list with two elements: class (predicted classes) and score (predicted scores).}
+\item{\code{fit(data)}}{Fit/calibrate the Jury on new data by recomputing weights, thresholds, and all metrics. Parameter: data (Data object used for calibration).}
 \item{\code{get_population()}}{Extract the population from the jury (experts). Returns Population object containing the experts.}
+\item{\code{print_self_report()}}{Display the Jury report with self-evaluation metrics to console.}
+\item{\code{print_report(test_data)}}{Display the Jury report with both training and test data evaluation. Parameter: test_data (Data object for test evaluation).}
 \item{\code{address()}}{Get memory address of this Jury object. Returns string representing the memory address.}
 \item{\code{print()}}{Get summary of this Jury. Returns string representing the Jury summary.}
-\item{\code{from_population(population)}}{Constructs a Jury object from a population using default parameters. Parameter: population (Population of experts). Returns Jury object.}
 }
 }
 

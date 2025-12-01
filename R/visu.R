@@ -362,7 +362,7 @@ plotFeatureModelCoeffs <- function(feat.model.coeffs, topdown = TRUE, main = "",
     theme_bw() +
     ggtitle(main) +
     theme(
-      legend.position = "none",
+      legend.position = "right",
       axis.text = element_text(size = 9),
       axis.text.x = if (vertical.label) element_text(angle = 90, hjust = 1) else element_text(angle = 0)
     )
@@ -757,7 +757,7 @@ makeFeatureModelPrevalenceNetworkMiic <- function(pop.noz,
 #' @import ggplot2
 #' @import tidyr
 #' @export
-plotAbundance <- function(features, X, y, topdown = TRUE, 
+plotAbundanceByClass <- function(features, X, y, topdown = TRUE, 
                                  main = "", plot = TRUE, log_scale = FALSE,
                                  col.pt = c("deepskyblue4", "firebrick4"), 
                                  col.bg = c("deepskyblue1", "firebrick1")) {
@@ -840,85 +840,7 @@ plotAbundance <- function(features, X, y, topdown = TRUE,
 }
 
 
-#' Plot Feature Coefficients Across Models
-#'
-#' This function visualizes the coefficients of features across different models
-#' in a heatmap. It supports sorting features, rotating labels, and displaying 
-#' coefficients in **log scale** when needed.
-#'
-#' @param feat.model.coeffs A numeric **matrix** where rows are **features**, 
-#'   columns are **models**, and values represent the coefficients.
-#' @param topdown Logical; if `TRUE`, features are sorted from **top to bottom** (default: `TRUE`).
-#' @param main A string for the **title** of the plot (default: `""`).
-#' @param col A vector of **colors** for the heatmap (default: `c("deepskyblue1", "white", "firebrick1")`).
-#' @param vertical.label Logical; if `TRUE`, feature labels are **rotated vertically** (default: `TRUE`).
-#' @param log.scale Logical; if `TRUE`, **log transformation** is applied to coefficients (default: `FALSE`).
-#'
-#' @return A `ggplot2` object displaying the heatmap of feature coefficients.
-#'
-#' @examples
-#' # Example usage
-#' features <- c("feature1", "feature2", "feature3")
-#' models <- c("model1", "model2", "model3")
-#' coeffs <- matrix(runif(9, -1, 1), nrow = 3, ncol = 3)
-#' rownames(coeffs) <- features
-#' colnames(coeffs) <- models
-#'
-#' # Plot feature model coefficients
-#' plotFeatureModelCoeffs(coeffs, main = "Feature Coefficients Heatmap", log.scale = TRUE)
-#'
-#' @author Edi Prifti (IRD)
-#' @import ggplot2
-#' @importFrom reshape2 melt
-#' @export
-plotFeatureModelCoeffs <- function(feat.model.coeffs, topdown = TRUE, main = "", 
-                                   col = c("deepskyblue1", "white", "firebrick1"), 
-                                   vertical.label = TRUE, log.scale = FALSE) {
-  
-  # Ensure input is a matrix
-  if (!is.matrix(feat.model.coeffs)) {
-    feat.model.coeffs <- as.matrix(feat.model.coeffs)
-  }
-  
-  # Handle log scale transformation (avoid log(0))
-  if (log.scale) {
-    feat.model.coeffs <- sign(feat.model.coeffs) * log1p(abs(feat.model.coeffs))
-  }
-  
-  # Sort features in top-down order if required
-  if (topdown) {
-    feat.model.coeffs <- feat.model.coeffs[nrow(feat.model.coeffs):1, , drop = FALSE]
-  }
-  
-  # Convert matrix to long format for ggplot
-  data.m <- reshape2::melt(feat.model.coeffs)
-  colnames(data.m) <- c("feature", "model", "value")
-  
-  # Adjust color mapping based on available coefficient values
-  unique_vals <- unique(data.m$value)
-  if (length(unique_vals) < 3) {
-    col <- col[c(-1, 0, 1) %in% unique_vals]
-  }
-  
-  # Create heatmap plot
-  p <- ggplot(data.m, aes(x = model, y = feature, fill = value)) + 
-    geom_tile(color = "darkgray") + 
-    theme_bw() +
-    ggtitle(main) +
-    scale_fill_gradientn(colors = col) +
-    theme(
-      legend.position = "right",
-      axis.text = element_text(size = 9),
-      axis.text.x = if (vertical.label) element_text(angle = 90, hjust = 1) else element_text(angle = 0)
-    )
-  
-  # Apply log scale on x-axis if enabled
-  if (log.scale) {
-    p <- p + scale_fill_viridis_c(option = "C", trans = "log10")  # Adjust fill colors for log
-  }
-  
-  return(p)
-}
+
 
 
 #' Plot Feature Prevalence and Enrichment
@@ -1278,94 +1200,634 @@ plot_population_heatmap <- function(exp,
   invisible(res)
 }
 
-#' Plot a precomputed genealogy
+#' Plot a precomputed genealogy (Graph / Tree view)
 #'
-#' @param td A list with components $nodes, $edges, $metadata as returned by Individual$get_genealogy_vis().
-#' @param layout Character: "tree" (default), "kk", "fr", "dendrogram", "circle".
-#' @param node_size_base Numeric base size for nodes (default 2).
-#' @param text_repel Logical, use repel labels (default TRUE).
-#' @return A ggraph plot object.
+#' @param td A list with $nodes and $edges as returned by get_genealogy().
+#' @param layout Graph layout: "tree", "kk", "fr", "sugiyama".
+#' @param node_size_base Base size of the nodes.
+#' @param text_repel Use ggrepel for labels.
+#' @param node_vars List or column names: list(color="auc", size="k", label="label").
+#' @return A ggplot/ggraph object.
 #' @export
-plot_genealogy <- function(td, layout = "tree", node_size_base = 2, text_repel = TRUE) {
+plot_genealogy <- function(
+
+  td, layout = "sugiyama", node_size_base = 2, text_repel = TRUE,
+  node_vars = list(color = "auc", size = "k", label = "label")
+) {
+  requireNamespace("ggraph")
+  requireNamespace("igraph")
+  requireNamespace("ggplot2")
+
   if (is.null(td) || is.null(td$nodes) || is.null(td$edges)) {
-    stop("`td` must be a list with $nodes and $edges as returned by get_genealogy_vis().")
+    stop("`td` must be a list with $nodes and $edges.")
   }
+  
   nodes <- td$nodes
   edges <- td$edges
+  edges <- edges[!is.na(edges$from) & edges$from != "" & edges$from %in% nodes$id, ]
 
-  if (!"name" %in% names(nodes)) {
-    if ("id" %in% names(nodes)) {
-      names(nodes)[names(nodes) == "id"] <- "name"
-    } else {
-      stop("Nodes need a 'name' or 'id' column.")
-    }
-  }
-  nodes$name <- as.character(nodes$name)
-  if ("label" %in% names(nodes)) nodes$label <- as.character(nodes$label)
-
-  if (!all(c("from","to") %in% names(edges))) {
-    stop("Edges need 'from' and 'to' columns.")
-  }
+  if (!"name" %in% names(nodes)) nodes$name <- as.character(nodes$id)
   edges$from <- as.character(edges$from)
   edges$to   <- as.character(edges$to)
 
-  used_ids <- unique(c(edges$from, edges$to))
-  missing  <- setdiff(used_ids, nodes$name)
+  all_ids <- unique(c(edges$from, edges$to))
+  missing <- setdiff(all_ids, nodes$name)
   if (length(missing) > 0) {
-    add <- data.frame(
-      name       = missing,
-      label      = missing,
-      auc        = NA_real_,
-      k          = NA_integer_,
-      generation = NA_integer_,
-      stringsAsFactors = FALSE
-    )
-    for (cn in setdiff(names(add), names(nodes))) nodes[[cn]] <- NA
-    for (cn in setdiff(names(nodes), names(add))) add[[cn]] <- NA
-    nodes <- rbind(nodes[names(add)], add)
+    warning(paste("Filling", length(missing), "missing nodes in genealogy."))
+    add_df <- data.frame(name = missing, id = missing, stringsAsFactors = FALSE)
+    for (col in setdiff(names(nodes), names(add_df))) add_df[[col]] <- NA
+    nodes <- rbind(nodes, add_df)
   }
 
-  g <- igraph::graph_from_data_frame(
-    d = edges[, c("from","to", setdiff(names(edges), c("from","to"))), drop = FALSE],
-    vertices = nodes,
-    directed = TRUE
-  )
+  g <- igraph::graph_from_data_frame(edges, vertices = nodes, directed = TRUE)
 
-  lay <- match.arg(layout, c("tree","kk","fr","dendrogram","circle"))
-  if ("k" %in% names(nodes)) {
-    nodes$k[is.na(nodes$k)] <- 0L
+  color_var <- node_vars$color %||% "auc"
+  size_var  <- node_vars$size  %||% "k"
+  label_var <- node_vars$label %||% "label"
+  
+  if (size_var %in% names(nodes)) {
+    nodes[[size_var]][is.na(nodes[[size_var]])] <- 1
   }
 
-  p <- ggraph::ggraph(g, layout = lay) +
+  p <- ggraph::ggraph(g, layout = layout) +
     ggraph::geom_edge_link(
-      arrow   = grid::arrow(length = grid::unit(2, "mm")),
+      arrow   = grid::arrow(length = grid::unit(2, "mm"), type = "closed"),
       end_cap = ggraph::circle(3, "mm"),
-      alpha   = 0.5, colour = "grey55"
+      alpha   = 0.4, 
+      colour  = "grey60"
     ) +
-    ggraph::geom_node_point(ggplot2::aes(color = .data$auc, size = .data$k)) +
-    ggplot2::scale_color_viridis_c(name = "AUC", option = "C", na.value = "grey80") +
-    ggplot2::scale_size_continuous(name = "k", range = c(node_size_base, node_size_base * 3)) +
+    ggraph::geom_node_point(
+      ggplot2::aes(color = .data[[color_var]], size = .data[[size_var]])
+    ) +
+    ggplot2::scale_size_continuous(range = c(node_size_base, node_size_base * 3)) +
     ggraph::theme_graph(base_family = "sans") +
-    ggplot2::labs(
-      title = paste("Genealogy", if (!is.null(td$metadata$root_id)) paste("of", td$metadata$root_id) else ""),
-      x = NULL, y = NULL
-    )
-    
-  if ("label" %in% names(nodes)) {
-    if (text_repel) {
+    ggplot2::labs(title = "Genealogy Trace")
+
+  if (is.numeric(nodes[[color_var]])) {
+    p <- p + ggplot2::scale_color_viridis_c(option = "C", na.value = "grey80")
+  } else {
+    p <- p + ggplot2::scale_color_discrete(na.value = "grey80")
+  }
+
+  if (!is.null(label_var) && label_var %in% names(nodes)) {
+    if (text_repel && requireNamespace("ggrepel", quietly = TRUE)) {
       p <- p + ggraph::geom_node_text(
-        ggplot2::aes(label = .data$label),
-        repel = TRUE, size = 3, bg.color = "white", segment.color = "grey60"
+        ggplot2::aes(label = .data[[label_var]]),
+        repel = TRUE, size = 3, bg.colour = "white"
       )
     } else {
-      p <- p + ggraph::geom_node_text(ggplot2::aes(label = .data$label), size = 3, vjust = -1)
+      p <- p + ggraph::geom_node_text(
+        ggplot2::aes(label = .data[[label_var]]), 
+        nudge_y = 0.2, size = 3
+      )
     }
   }
 
-  p <- p + ggplot2::guides(
-    color = ggplot2::guide_colorbar(barheight = 6, barwidth = 0.4),
-    size  = ggplot2::guide_legend(override.aes = list(color = "grey30"))
+  return(p)
+}
+
+#' Plot Class Heatmap: Predicted Classes by Individuals and True Classes
+#'
+#' @param class_matrix Data.frame (samples x individuals) with predicted classes {0,1},
+#'   as returned by `population$predict_class_matrix(data)`.
+#' @param y Vector of true class labels for samples.
+#' @param main Character string for plot title (default: "Predicted Classes by Individual").
+#' @param data Optional list containing `y` and `classes`.
+#' @param select_individuals Optional vector of individual names to display.
+#' @param select_samples Optional vector of sample names to display.
+#' @param show_consensus Logical; if TRUE, adds consensus column (default: FALSE).
+#' @param cluster_individuals Whether to cluster individuals (default: FALSE).
+#'
+#' @return A ggplot2 object.
+#' @export
+plotClassHeatmap <- function(class_matrix, y = NULL, main = "Predicted Classes by Individual",
+                              data = NULL, select_individuals = NULL, select_samples = NULL,
+                              show_consensus = FALSE, cluster_individuals = FALSE) {
+  library(ggplot2)
+  library(tidyr)
+  library(dplyr)
+  
+  # --- Load from data object ---
+  if (!is.null(data)) {
+    if (!"y" %in% names(data)) stop("Data object must contain 'y'")
+    y <- data$y
+    if (is.raw(y)) y <- as.integer(y)
+    y_numeric <- as.integer(as.vector(y))
+    y <- factor(y_numeric)
+    if (!is.null(data$classes)) {
+      levels(y) <- as.character(data$classes)[seq_along(levels(y))]
+    }
+  } else {
+    if (is.null(y)) stop("y must be provided")
+    y_numeric <- as.integer(as.vector(y))
+    y <- factor(y_numeric)
+  }
+  
+  # --- Convert ---
+  if (is.matrix(class_matrix)) {
+    class_matrix <- as.data.frame(class_matrix)
+  }
+  
+  # --- Subset samples ---
+  if (!is.null(select_samples)) {
+    idx <- rownames(class_matrix) %in% select_samples
+    class_matrix <- class_matrix[idx, , drop = FALSE]
+    y <- y[idx]
+    y_numeric <- y_numeric[idx]
+  }
+  
+  # --- Subset individuals ---
+  if (!is.null(select_individuals)) {
+    class_matrix <- class_matrix[, colnames(class_matrix) %in% select_individuals, drop = FALSE]
+  }
+  
+  if (nrow(class_matrix) != length(y)) {
+    stop("Length of y must match number of rows in class_matrix")
+  }
+  
+  if (is.null(rownames(class_matrix))) {
+    rownames(class_matrix) <- paste0("Sample_", seq_len(nrow(class_matrix)))
+  }
+  if (is.null(colnames(class_matrix))) {
+    colnames(class_matrix) <- paste0("Individual_", seq_len(ncol(class_matrix)))
+  }
+  
+  # --- Add consensus column if requested ---
+  if (show_consensus) {
+    class_matrix$Consensus <- as.integer(rowMeans(class_matrix[, -ncol(class_matrix)]) >= 0.5)
+  }
+  
+  # --- Optional clustering ---
+  if (cluster_individuals && ncol(class_matrix) > 2) {
+    cols_to_cluster <- if (show_consensus) 1:(ncol(class_matrix)-1) else 1:ncol(class_matrix)
+    sub_mat <- class_matrix[, cols_to_cluster, drop = FALSE]
+    hc <- hclust(dist(t(sub_mat)), method = "complete")
+    class_matrix[, cols_to_cluster] <- sub_mat[, hc$order, drop = FALSE]
+  }
+  
+  sample_levels <- rownames(class_matrix)
+  individual_levels <- colnames(class_matrix)
+  
+  # --- Reshape ---
+  class_matrix$Sample <- rownames(class_matrix)
+  class_matrix$TrueClass <- y
+  class_matrix$TrueClass_num <- y_numeric
+  
+  df_long <- class_matrix %>%
+    pivot_longer(cols = -c(Sample, TrueClass, TrueClass_num),
+                 names_to = "Individual", values_to = "PredictedClass")
+  
+  df_long <- df_long %>%
+    mutate(
+      Sample = factor(Sample, levels = sample_levels),
+      Individual = factor(Individual, levels = individual_levels),
+      TrueClass = factor(TrueClass, levels = levels(y)),
+      PredictedClass = factor(PredictedClass, levels = c(0, 1)),
+      Correct = (as.integer(as.character(PredictedClass)) == TrueClass_num)
+    )
+  
+  # --- Build plot ---
+  p <- ggplot(df_long, aes(x = Individual, y = Sample, fill = PredictedClass, alpha = Correct)) +
+    geom_tile(color = "grey70", linewidth = 0.1) +
+    scale_fill_manual(values = c("0" = "#3498db", "1" = "#e74c3c"),
+                      labels = c("Class 0", "Class 1"), name = "Predicted") +
+    scale_alpha_manual(values = c("TRUE" = 1.0, "FALSE" = 0.3),
+                       labels = c("Incorrect", "Correct"), name = "Match") +
+    facet_wrap(~TrueClass, scales = "free_y", ncol = 1) +
+    labs(title = main, x = "Individuals", y = "Samples") +
+    theme_minimal() +
+    coord_flip() +
+    theme(
+      axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1, size = 8),
+      axis.text.y = element_text(size = 6),
+      panel.grid = element_blank(),
+      strip.text = element_text(size = 12, face = "bold"),
+      panel.spacing = unit(1.5, "lines")
+    )
+  
+  return(p)
+}
+
+#' Plot Importance Heatmap: Feature Importance Across Folds or Individuals
+#'
+#' @param importance_matrix Matrix or data.frame (features x folds/individuals).
+#'   From `experiment$compute_cv_importance_matrix()` or `population$compute_importance_matrix()`.
+#' @param main Character string for plot title.
+#' @param select_features Optional vector of feature names to display.
+#' @param top_n Optional integer; shows only top N features by mean importance.
+#' @param color_scale Color scale: "RdYlBu" (default), "viridis", "gradient".
+#' @param cluster_features Whether to cluster features (default: TRUE).
+#' @param cluster_columns Whether to cluster columns (default: FALSE).
+#' @param show_values Logical; displays importance values in tiles (default: FALSE).
+#'
+#' @return A ggplot2 object.
+#' @export
+plotImportanceHeatmap <- function(importance_matrix, main = "Feature Importance",
+                                   select_features = NULL, top_n = NULL,
+                                   color_scale = "RdYlBu", cluster_features = TRUE,
+                                   cluster_columns = FALSE, show_values = FALSE) {
+  library(ggplot2)
+  library(tidyr)
+  library(dplyr)
+  
+  # --- Convert matrix to data.frame ---
+  if (is.matrix(importance_matrix)) {
+    importance_matrix <- as.data.frame(importance_matrix)
+  }
+  
+  if (is.null(rownames(importance_matrix))) {
+    rownames(importance_matrix) <- paste0("Feature_", seq_len(nrow(importance_matrix)))
+  }
+  if (is.null(colnames(importance_matrix))) {
+    colnames(importance_matrix) <- paste0("Col_", seq_len(ncol(importance_matrix)))
+  }
+  
+  # --- Filter top N ---
+  if (!is.null(top_n)) {
+    mean_imp <- rowMeans(importance_matrix, na.rm = TRUE)
+    top_idx <- order(mean_imp, decreasing = TRUE)[1:min(top_n, nrow(importance_matrix))]
+    importance_matrix <- importance_matrix[top_idx, , drop = FALSE]
+  }
+  
+  # --- Select features ---
+  if (!is.null(select_features)) {
+    importance_matrix <- importance_matrix[rownames(importance_matrix) %in% select_features, , drop = FALSE]
+  }
+  
+  if (nrow(importance_matrix) == 0) stop("No features remaining after filtering")
+  
+  # --- Clustering ---
+  if (cluster_features && nrow(importance_matrix) > 2) {
+    row_var <- apply(importance_matrix, 1, var, na.rm = TRUE)
+    valid_rows <- which(row_var > 0)
+    if (length(valid_rows) > 1) {
+      hc <- hclust(dist(importance_matrix[valid_rows, , drop = FALSE]))
+      importance_matrix <- importance_matrix[c(valid_rows[hc$order], which(row_var == 0)), , drop = FALSE]
+    }
+  }
+  
+  if (cluster_columns && ncol(importance_matrix) > 2) {
+    col_var <- apply(importance_matrix, 2, var, na.rm = TRUE)
+    valid_cols <- which(col_var > 0)
+    if (length(valid_cols) > 1) {
+      hc <- hclust(dist(t(importance_matrix[, valid_cols, drop = FALSE])))
+      importance_matrix <- importance_matrix[, c(valid_cols[hc$order], which(col_var == 0)), , drop = FALSE]
+    }
+  }
+  
+  feature_levels <- rownames(importance_matrix)
+  column_levels <- colnames(importance_matrix)
+  
+  # --- Reshape ---
+  df_long <- importance_matrix %>%
+    mutate(Feature = rownames(importance_matrix)) %>%
+    pivot_longer(cols = -Feature, names_to = "Column", values_to = "Importance") %>%
+    mutate(
+      Feature = factor(Feature, levels = rev(feature_levels)),
+      Column = factor(Column, levels = column_levels)
+    )
+  
+  # --- Color scale ---
+  fill_scale <- switch(color_scale,
+    "RdYlBu" = scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+                                     midpoint = 0, na.value = "grey90"),
+    "viridis" = scale_fill_viridis_c(option = "D", na.value = "grey90"),
+    "gradient" = scale_fill_gradient(low = "white", high = "darkgreen", na.value = "grey90"),
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)
   )
+  
+  # --- Build plot ---
+  p <- ggplot(df_long, aes(x = Column, y = Feature, fill = Importance)) +
+    geom_tile(color = "grey80", linewidth = 0.1) +
+    fill_scale +
+    labs(title = main, x = "", y = "") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 9),
+      axis.text.y = element_text(size = 7),
+      panel.grid = element_blank()
+    )
+  
+  if (show_values) {
+    p <- p + geom_text(aes(label = sprintf("%.2f", Importance)), size = 2.5)
+  }
+  
+  return(p)
+}
+
+#' Plot Training History from an Experiment
+#'
+#' This function computes and visualizes the training history directly from an
+#' Experiment object by internally calling `experiment$get_history(data, scope)`.
+#'
+#' It supports multiple scopes ("best", "fbm", "top5", "all"), cross-validation folds,
+#' and optional vertical event lines corresponding to GA-specific epochs:
+#' - random sampling epochs (param$ga$randomsamplingepochs)
+#' - forced diversity epochs (param$ga$forceddiversityepochs)
+#'
+#' @param experiment An Experiment object (GpredomicsR).
+#' @param data A Data object on which metrics are evaluated (training or external set).
+#' @param scope Character; one of "best", "fbm", "top5", or "all". Controls which
+#'   individuals are aggregated at each generation. Default is "best".
+#' @param metrics Character vector of metric names to plot. Must be columns of the
+#'   data.frame returned by `experiment$get_history()`. Typical choices include
+#'   c("AUC", "Fit", "Sensitivity", "Specificity", "F1", "MCC", "k").
+#' @param show_folds Logical; if TRUE and if a "Fold" column is present, individual
+#'   fold curves are drawn in grey in the background. Default is FALSE.
+#' @param show_events Logical; if TRUE and if the algorithm is GA, vertical lines
+#'   are drawn at GA event epochs (random sampling and forced diversity).
+#' @param main Character; plot title. Default: "Training history".
+#' @param theme Character; ggplot2 theme name: "minimal" (default), "bw", or "classic".
+#'
+#' @return A ggplot2 object.
+#' @import ggplot2
+#' @importFrom dplyr select group_by summarize across
+#' @importFrom tidyr pivot_longer
+#' @export
+plotHistory <- function(experiment,
+                        data,
+                        scope = "best",
+                        metrics = c("AUC", "Fit"),
+                        show_folds = FALSE,
+                        show_events = FALSE,
+                        main = "Training history",
+                        theme = "minimal") {
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+
+  # --- Sanity checks ---
+  if (missing(experiment) || missing(data)) {
+    stop("Both 'experiment' and 'data' must be provided.")
+  }
+
+  # Retrieve history from Rust side
+  history <- experiment$get_history(data, scope)
+
+  if (!is.data.frame(history)) {
+    stop("experiment$get_history() must return a data.frame.")
+  }
+
+  if (!"Generation" %in% colnames(history)) {
+    stop("History data.frame must contain a 'Generation' column.")
+  }
+
+  # Check metrics presence
+  missing_metrics <- setdiff(metrics, colnames(history))
+  if (length(missing_metrics) > 0) {
+    stop(
+      "The following metrics are not present in history: ",
+      paste(missing_metrics, collapse = ", ")
+    )
+  }
+
+  has_folds <- "Fold" %in% colnames(history)
+
+  # --- Build long-format data depending on CV presence and show_folds ---
+  if (has_folds && show_folds) {
+    df_long <- history %>%
+      select(Fold, Generation, all_of(metrics)) %>%
+      pivot_longer(cols = all_of(metrics),
+                   names_to = "Metric",
+                   values_to = "Value")
+
+    p <- ggplot(df_long,
+                aes(x = Generation,
+                    y = Value,
+                    group = interaction(Fold, Metric))) +
+      geom_line(color = "grey70", alpha = 0.6) +
+      facet_wrap(~Metric, scales = "free_y") +
+      labs(title = main, x = "Generation", y = "Value")
+
+  } else if (has_folds && !show_folds) {
+    df_long <- history %>%
+      select(Fold, Generation, all_of(metrics)) %>%
+      pivot_longer(cols = all_of(metrics),
+                   names_to = "Metric",
+                   values_to = "Value")
+
+    df_summary <- df_long %>%
+      group_by(Generation, Metric) %>%
+      summarize(
+        Mean = mean(Value, na.rm = TRUE),
+        SD   = sd(Value,   na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    p <- ggplot(df_summary,
+                aes(x = Generation,
+                    y = Mean,
+                    color = Metric,
+                    fill = Metric)) +
+      geom_line(linewidth = 1) +
+      geom_ribbon(aes(ymin = Mean - SD,
+                      ymax = Mean + SD),
+                  alpha = 0.2,
+                  color = NA) +
+      facet_wrap(~Metric, scales = "free_y") +
+      labs(title = main, x = "Generation", y = "Value",
+           color = "Metric", fill = "Metric")
+
+  } else {
+    df_long <- history %>%
+      select(Generation, all_of(metrics)) %>%
+      pivot_longer(cols = all_of(metrics),
+                   names_to = "Metric",
+                   values_to = "Value")
+
+    p <- ggplot(df_long,
+                aes(x = Generation,
+                    y = Value,
+                    color = Metric)) +
+      geom_line(linewidth = 1) +
+      facet_wrap(~Metric, scales = "free_y") +
+      labs(title = main, x = "Generation", y = "Value",
+           color = "Metric")
+  }
+
+  # --- Add GA event vertical lines if requested ---
+  if (show_events) {
+    # Retrieve parameters from experiment
+    param <- experiment$get_param()$get()
+    algo  <- param$general$algo
+    max_gen <- max(history$Generation, na.rm = TRUE)
+
+    events <- data.frame(
+      Generation = numeric(0),
+      Event      = character(0),
+      stringsAsFactors = FALSE
+    )
+
+    ## 1) GA-specific events (if algo == "ga")
+    if (algo == "ga") {
+      rs_step  <- tryCatch(param$ga$random_sampling_epochs, error = function(e) NULL)
+      div_step <- tryCatch(param$ga$forced_diversity_epochs, error = function(e) NULL)
+      rs_pct  <- tryCatch(param$ga$random_sampling_pct, error = function(e) NULL)
+      div_pct <- tryCatch(param$ga$forced_diversity_pct, error = function(e) NULL)
+
+      # Random sampling epochs
+      if (!is.null(rs_step) && length(rs_step) == 1 &&
+          is.finite(rs_step) && rs_step > 0 && rs_pct > 0) {
+            rs_epochs <- seq(from = rs_step, to = max_gen, by = rs_step)
+        p <- p + geom_vline(xintercept = rs_epochs,
+                            linetype = "dotted",
+                            color = "orange",
+                            alpha = 0.9)
+            events <- rbind(events,
+                      data.frame(Generation = rs_epochs,
+                                 Event = "GA random sampling"))
+      }
+
+      # Forced diversity epochs
+      
+      if (!is.null(div_step) && length(div_step) == 1 &&
+          is.finite(div_step) && div_step > 0 && div_pct > 0) {
+            div_epochs <- seq(from = div_step, to = max_gen, by = div_step)
+        p <- p + geom_vline(xintercept = div_epochs,
+                            linetype = "dashed",
+                            color = "red",
+                            alpha = 0.9)
+          events <- rbind(events,
+                      data.frame(Generation = div_epochs,
+                                 Event = "GA forced diversity"))
+      }
+    }
+
+    ## 2) CV-specific event: inner folds epochs
+    cv_step <- tryCatch(param$cv$resampling_inner_folds_epochs, error = function(e) NULL)
+    cv_ov <- tryCatch(param$cv$overfit_penalty, error = function(e) NULL)
+    cv_if <- tryCatch(param$cv$inner_folds, error = function(e) NULL)
+
+    if (!is.null(cv_step) && length(cv_step) == 1 &&
+        is.finite(cv_step) && cv_step > 0 && cv_ov> 0 && cv_if > 1) {
+        cv_epochs <- seq(from = cv_step, to = max_gen, by = cv_step)
+        p <- p + geom_vline(xintercept = cv_epochs,
+                            linetype = "longdash",
+                            color = "blue",
+                            alpha = 0.9)
+        events <- rbind(events,
+                    data.frame(Generation = cv_epochs,
+                               Event = "CV resampling"))
+    }
+
+    if (nrow(events) > 0) {
+      p <- p +
+        geom_vline(data = events,
+                  aes(xintercept = Generation, color = Event, linetype = Event),
+                  alpha = 0.9) +
+        scale_color_manual(values = c(
+          "GA random sampling"  = "orange",
+          "GA forced diversity" = "red",
+          "CV resampling"       = "blue"
+        )) +
+        scale_linetype_manual(values = c(
+          "GA random sampling"  = "dotted",
+          "GA forced diversity" = "dashed",
+          "CV resampling"       = "longdash"
+        )) +
+        guides(color = guide_legend(title = "Events"),
+              linetype = guide_legend(title = "Events"))
+    }
+  }
+
+
+
+  # --- Apply theme ---
+  p <- p + switch(theme,
+                  "minimal" = theme_minimal(),
+                  "bw"      = theme_bw(),
+                  "classic" = theme_classic(),
+                  theme_minimal())
+
+  return(p)
+}
+
+#' Waterfall Plot for a Single Prediction
+#'
+#' Visualize feature-wise contributions of a BTR/Pow2 model for a single sample,
+#' in a waterfall-style plot (similar to SHAP waterfall plots).
+#'
+#' @param individual An Individual object.
+#' @param data A Data object used for evaluation.
+#' @param sample Integer, 1-based index of the sample to explain.
+#' @param baseline Numeric; optional baseline score from which to start the
+#'   cumulative curve (default 0).
+#' @param top_n Optional integer; if provided, only the top_n features by
+#'   absolute contribution are shown.
+#' @param main Character; plot title.
+#'
+#' @return A ggplot2 object.
+#' @export
+plotIndividualWaterfall <- function(individual,
+                                    data,
+                                    sample = 1L,
+                                    baseline = 0,
+                                    top_n = NULL,
+                                    main = NULL) {
+  library(ggplot2)
+  library(dplyr)
+
+  # R → Rust index (0-based)
+  if (sample < 1L) {
+    stop("sample index must be >= 1 (R is 1-based).")
+  }
+
+  df <- individual$explain_sample(data, sample_index = sample)
+
+  if (!is.null(top_n) && nrow(df) > top_n) {
+    df <- df %>%
+      mutate(abs_contrib = abs(Contribution)) %>%
+      arrange(desc(abs_contrib)) %>%
+      slice(seq_len(top_n))
+  }
+
+  df <- df %>%
+    mutate(abs_contrib = abs(Contribution)) %>%
+    arrange(desc(abs_contrib)) %>%
+    mutate(
+      Feature = factor(Feature, levels = rev(unique(Feature))),
+      Direction = ifelse(Contribution >= 0, "Positive", "Negative")
+    )
+
+  df <- df %>%
+    mutate(
+      CumStart = baseline + c(0, head(cumsum(Contribution), -1)),
+      CumEnd   = baseline + cumsum(Contribution)
+    )
+
+  if (is.null(main)) {
+    main = paste("Waterfall plot for sample", 
+      data$get()$samples[sample], 
+      "(prediction:",
+      ifelse(
+        data$get()$y[sample]==individual$predict(data)$class[sample], 
+        "correct)", 
+        "incorrect)")
+      )
+  }
+
+  p <- ggplot(df, aes(x = Feature)) +
+    geom_rect(aes(
+      xmin = as.numeric(Feature) - 0.4,
+      xmax = as.numeric(Feature) + 0.4,
+      ymin = pmin(CumStart, CumEnd),
+      ymax = pmax(CumStart, CumEnd),
+      fill = Direction
+    ), color = "grey40") +
+    geom_point(aes(y = CumEnd), size = 1.5, color = "black") +
+    geom_hline(yintercept = baseline, linetype = "dotted", color = "grey50") +
+    coord_flip() +
+    scale_fill_manual(values = c("Positive" = "#2E8B57", "Negative" = "#E64B35")) +
+    labs(
+      title = main,
+      x = "",
+      y = "Cumulative score"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.y = element_text(size = 8),
+      legend.position = "bottom"
+    )
 
   return(p)
 }

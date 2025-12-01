@@ -830,5 +830,136 @@ computeCardEnrichment <- function(v.card.mat, y) {
   ))
 }
 
+#' Create Gpredomics Data Object
+#' 
+#' @title Create Data from R Matrix/DataFrame and Labels
+#' 
+#' @description
+#' Convert R data structures (data.frame, matrix) and labels to a Gpredomics Data object
+#' with optional feature and sample annotations.
+#' 
+#' @param X A data.frame or matrix containing feature abundances.
+#' @param y A named vector with binary labels (0/1, character, or 2-level factor).
+#'   Names must match sample identifiers.
+#' @param features.in.columns Logical. If TRUE (default), features are in columns
+#'   and samples in rows. If FALSE, features are in rows.
+#' @param prior.weight Optional named numeric vector. Prior weights for features
+#'   (higher = more likely to be selected). Default: NULL (no prior).
+#' @param feature.penalty Optional named numeric vector. Penalties for features
+#'   (higher = less likely to be selected). Default: NULL (no penalty).
+#' @param sample.strata Optional named character/factor vector. Stratification
+#'   variable for cross-validation (e.g., cohort, center). Default: NULL.
+#' @param feature.tags Optional data.frame. Additional feature metadata with
+#'   first column = feature names, other columns = annotations. Default: NULL.
+#' @param sample.tags Optional data.frame. Additional sample metadata with
+#'   first column = sample names, other columns = annotations. Default: NULL.
+#' 
+#' @return A Gpredomics Data object (S3 class \code{Data})
+#' 
+#' @details
+#' ## Feature Annotations
+#' 
+#' Feature annotations control the feature selection process:
+#' \itemize{
+#'   \item \strong{prior.weight}: Features with higher weights are preferentially
+#'     selected by the genetic algorithm. Useful for incorporating prior biological
+#'     knowledge (e.g., known biomarkers).
+#'   \item \strong{feature.penalty}: Penalize specific features to reduce their
+#'     selection probability. Useful for down-weighting noisy or redundant features.
+#'   \item \strong{feature.tags}: Store taxonomic, functional, or other metadata
+#'     for downstream analysis and interpretation.
+#' }
+#' 
+#' ## Sample Annotations
+#' 
+#' \itemize{
+#'   \item \strong{sample.strata}: Used for stratified cross-validation to ensure
+#'     balanced representation across cohorts/centers/batches.
+#'   \item \strong{sample.tags}: Store clinical, demographic, or technical metadata.
+#' }
+#' 
+#' @examples
+#' \dontrun{
+#' # Basic usage
+#' library(gpredomics)
+#' 
+#' # Load abundance matrix and labels
+#' X <- read.csv("abundance.csv", row.names = 1)
+#' y <- setNames(c(0, 1, 1, 0), rownames(X))
+#' 
+#' data <- as.gpredomics.data(X, y)
+#' 
+#' # With feature annotations
+#' prior_weights <- setNames(
+#'   c(2.0, 1.5, 0.8),
+#'   c("Bacteroides_fragilis", "Escherichia_coli", "Lactobacillus")
+#' )
+#' 
+#' feature_metadata <- data.frame(
+#'   feature = c("Bacteroides_fragilis", "Escherichia_coli"),
+#'   phylum = c("Bacteroidetes", "Proteobacteria"),
+#'   functional_group = c("SCFA_producer", "Pathobiont")
+#' )
+#' 
+#' data <- as.gpredomics.data(
+#'   X = X,
+#'   y = y,
+#'   prior.weight = prior_weights,
+#'   feature.tags = feature_metadata
+#' )
+#' 
+#' # With sample stratification for CV
+#' sample_strata <- setNames(
+#'   c("Cohort1", "Cohort1", "Cohort2", "Cohort2"),
+#'   rownames(X)
+#' )
+#' 
+#' data <- as.gpredomics.data(
+#'   X = X,
+#'   y = y,
+#'   sample.strata = sample_strata
+#' )
+#' }
+#' @export
+as.gpredomics.data <- function(
+  X,
+  y,
+  features.in.columns = TRUE,
+  prior.weight = NULL,
+  feature.penalty = NULL,
+  feature.tags = NULL,
+  sample.tags = NULL
+) {
+  # Validation
+  if (missing(X) || missing(y)) {
+    stop("Both X (feature matrix) and y (labels) are required")
+  }
+  
+  # Convert to data.frame if matrix
+  if (is.matrix(X)) {
+    X <- as.data.frame(X)
+  }
+  
+  # Validate y is named
+  if (is.null(names(y))) {
+    stop("y must be a named vector with sample identifiers")
+  }
+  
+  # Call internal Rust function
+  result <- as_gpredomics_data(
+    df = X,
+    y_vec = y,
+    features_in_columns = features.in.columns,
+    prior_weight = prior.weight,
+    feature_penalty = feature.penalty,
+    feature_tags = feature.tags,
+    sample_tags = sample.tags
+  )
+  
+  # Add S3 class
+  class(result) <- c("gpredomics_data", class(result))
+  
+  return(result)
+}
 
 

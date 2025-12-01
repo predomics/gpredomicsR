@@ -7,13 +7,19 @@
 fit(param, running_flag)
 }
 \arguments{
-\item{param}{Param object containing experiment configuration}
+\item{param}{Param object containing experiment configuration (data paths, algorithm, CV settings)}
 
-\item{running_flag}{RunningFlag object to monitor execution}
+\item{running_flag}{RunningFlag object to control and monitor execution}
 }
 \value{
-Experiment object containing notably the resulting Population
+Experiment object containing populations, final results, and optional Jury
 }
 \description{
-The simple genetic algorithm (ga) produce a Population from a Param object. The RunningFlag object is convenient when launching ga in a subthread, it must be provided (but you can let it live its own way)
+Run the Gpredomics genetic algorithm to produce an Experiment from parameters
+}
+\details{
+This is the main entry point for running Gpredomics algorithms (GA, BEAM, MCMC).
+The function loads data specified in the param object, runs the algorithm, and
+returns a complete Experiment object with results. If param$voting$vote is TRUE,
+a Jury ensemble is automatically computed.
 }

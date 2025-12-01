@@ -6,7 +6,7 @@
 \alias{$.Data}
 \title{Data}
 \format{
-An object of class \code{environment} of length 4.
+An object of class \code{environment} of length 5.
 }
 \usage{
 Data
@@ -25,6 +25,7 @@ and other metadata needed for machine learning algorithms.
 \item{\code{get()}}{Returns an R list with all Data fields (X, y, features, samples, etc.).}
 \item{\code{address()}}{Get memory address of this Data object as a string.}
 \item{\code{print()}}{Get a formatted string summary of the Data dimensions and content.}
+\item{\code{train_test_split(test_ratio, stratify_by, seed)}}{Stratified train/test split. Parameters: test_ratio (fraction for test set, 0-1), stratify_by (optional column name in sample annotations for double stratification), seed (optional random seed). Returns a list with train and test Data objects.}
 }
 }
 

@@ -2,22 +2,30 @@
 % Please edit documentation in R/visu.R
 \name{plot_genealogy}
 \alias{plot_genealogy}
-\title{Plot a precomputed genealogy}
+\title{Plot a precomputed genealogy (Graph / Tree view)}
 \usage{
-plot_genealogy(td, layout = "tree", node_size_base = 2, text_repel = TRUE)
+plot_genealogy(
+  td,
+  layout = "sugiyama",
+  node_size_base = 2,
+  text_repel = TRUE,
+  node_vars = list(color = "auc", size = "k", label = "label")
+)
 }
 \arguments{
-\item{td}{A list with components $nodes, $edges, $metadata as returned by Individual$get_genealogy_vis().}
+\item{td}{A list with $nodes and $edges as returned by get_genealogy().}
 
-\item{layout}{Character: "tree" (default), "kk", "fr", "dendrogram", "circle".}
+\item{layout}{Graph layout: "tree", "kk", "fr", "sugiyama".}
 
-\item{node_size_base}{Numeric base size for nodes (default 2).}
+\item{node_size_base}{Base size of the nodes.}
 
-\item{text_repel}{Logical, use repel labels (default TRUE).}
+\item{text_repel}{Use ggrepel for labels.}
+
+\item{node_vars}{List or column names: list(color="auc", size="k", label="label").}
 }
 \value{
-A ggraph plot object.
+A ggplot/ggraph object.
 }
 \description{
-Plot a precomputed genealogy
+Plot a precomputed genealogy (Graph / Tree view)
 }
