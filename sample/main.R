@@ -3,7 +3,6 @@
 #---------------------------------------------
 rextendr::document()
 
-
 library(gpredomicsR)
 
 # # other libraries

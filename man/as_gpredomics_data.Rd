@@ -50,8 +50,8 @@ Label handling (\code{y}):
 \item Character or factor: classes are extracted from the actual labels/levels and stored in \code{Data.classes}.
 \item Integer:
 \itemize{
-\item If values are {0,1}, they are kept as-is (classes = \link{"0","1"}).
-\item If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = \link{str(a), str(b)}).
+\item If values are {0,1}, they are kept as-is (classes = c("0","1")).
+\item If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = c(str(a), str(b))).
 }
 }
 \item If more than two non-missing classes are present, associated samples are classified as unknown.

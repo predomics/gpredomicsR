@@ -294,7 +294,7 @@ impl Param {
             ("method", Robj::from(format!("{:?}", self.intern.beam.method))),
             ("kmin", Robj::from(self.intern.beam.kmin)),
             ("kmax", Robj::from(self.intern.beam.kmax)),
-            ("best_models_ci_alpha", Robj::from(self.intern.beam.best_models_ci_alpha)),            
+            ("best_models_criterion", Robj::from(self.intern.beam.best_models_criterion)),            
             ("max_nb_of_models", Robj::from(self.intern.beam.max_nb_of_models)),
         ]);
 
@@ -404,7 +404,7 @@ impl Param {
             "n_epochs_before_global" => self.intern.ga.n_epochs_before_global = value as usize,
             
             // BEAM parameters
-            "best_models_ci_alpha" => self.intern.beam.best_models_ci_alpha = value,
+            "best_models_criterion" => self.intern.beam.best_models_criterion = value,
             "max_nb_of_models" => self.intern.beam.max_nb_of_models = value as usize,
             
             // MCMC parameters
@@ -479,8 +479,8 @@ impl Param {
             
             // BEAM parameters
             "method" => self.intern.beam.method = match string.to_lowercase().as_str() { 
-                "LimitedExhaustive" => gpredomics::beam::BeamMethod::LimitedExhaustive,
-                "ParallelForward" => gpredomics::beam::BeamMethod::ParallelForward,
+                "limitedexhaustive" => gpredomics::beam::BeamMethod::LimitedExhaustive,
+                "parallelforward" => gpredomics::beam::BeamMethod::ParallelForward,
                 _ => {r_print_error(format!("Unknown BEAM method: {}. Currently only 'LimitedExhaustive' and 'ParallelForward' are supported.", string)); 
                 self.intern.beam.method.clone()}
                 },
@@ -989,8 +989,8 @@ fn sparse_vector_to_vector_usize_u8(vector: &HashMap<usize, u8>, length: usize) 
 /// - If `y` has exactly two classes:
 ///   - Character or factor: classes are extracted from the actual labels/levels and stored in `Data.classes`.
 ///   - Integer:
-///     - If values are {0,1}, they are kept as-is (classes = ["0","1"]).
-///     - If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = [str(a), str(b)]).
+///     - If values are {0,1}, they are kept as-is (classes = c("0","1")).
+///     - If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = c(str(a), str(b))).
 /// - If more than two non-missing classes are present, associated samples are classified as unknown.
 /// - The binary vector `y` is reordered to match the chosen sample order derived from `df`.
 ///
