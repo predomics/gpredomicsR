@@ -53,8 +53,8 @@ fit_on <- function(data, param, running_flag) .Call(wrap__fit_on, data, param, r
 #' - If `y` has exactly two classes:
 #'   - Character or factor: classes are extracted from the actual labels/levels and stored in `Data.classes`.
 #'   - Integer:
-#'     - If values are {0,1}, they are kept as-is (classes = ["0","1"]).
-#'     - If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = [str(a), str(b)]).
+#'     - If values are {0,1}, they are kept as-is (classes = c("0","1")).
+#'     - If two distinct integers {a,b} are detected, a warning is emitted and a→0, b→1 mapping is applied (classes = c(str(a), str(b))).
 #' - If more than two non-missing classes are present, associated samples are classified as unknown.
 #' - The binary vector `y` is reordered to match the chosen sample order derived from `df`.
 #'
