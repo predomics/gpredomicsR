@@ -12,20 +12,30 @@ An object of class \code{environment} of length 5.
 Data
 }
 \description{
-Gpredomics Data object containing feature matrix and labels.
+Feature matrix and labels for Gpredomics machine learning.
 }
 \details{
-The Data object stores the feature matrix (X), labels (y), sample names, feature names,
-and other metadata needed for machine learning algorithms.
+The Data object stores the complete dataset for machine learning:
+\\itemize{
+\\item \\strong{Feature matrix (X)}: Sparse representation of sample x feature values
+\\item \\strong{Labels (y)}: Binary or multi-class classification labels
+\\item \\strong{Sample metadata}: Sample names and optional annotations/tags
+\\item \\strong{Feature metadata}: Feature names, selection info, and optional annotations
+\\item \\strong{Class information}: Class labels and distribution
+}
+
+The sparse matrix representation efficiently handles high-dimensional omics data
+with many zero values. Optional annotations support stratified sampling and
+feature weighting.
 }
 \section{Methods}{
 
-\describe{
-\item{\code{new()}}{Create a new empty Data object.}
-\item{\code{get()}}{Returns an R list with all Data fields (X, y, features, samples, etc.).}
-\item{\code{address()}}{Get memory address of this Data object as a string.}
-\item{\code{print()}}{Get a formatted string summary of the Data dimensions and content.}
-\item{\code{train_test_split(test_ratio, stratify_by, seed)}}{Stratified train/test split. Parameters: test_ratio (fraction for test set, 0-1), stratify_by (optional column name in sample annotations for double stratification), seed (optional random seed). Returns a list with train and test Data objects.}
+\\describe{
+\\item{\\code{new()}}{Create a new empty Data object.}
+\\item{\\code{get()}}{Returns an R list with all Data fields (X, y, features, samples, annotations).}
+\\item{\\code{address()}}{Get memory address of this Data object.}
+\\item{\\code{print()}}{Get formatted string summary of Data dimensions and content.}
+\\item{\\code{train_test_split(test_ratio, stratify_by, seed)}}{Perform stratified train/test split with optional double stratification.}
 }
 }
 

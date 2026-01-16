@@ -6,47 +6,42 @@
 \alias{$.Param}
 \title{Param}
 \format{
-An object of class \code{environment} of length 7.
+An object of class \code{environment} of length 9.
 }
 \usage{
 Param
 }
 \description{
-Gpredomics parameter object that stores all algorithm settings.
+Comprehensive parameter configuration for Gpredomics algorithms.
 }
 \details{
-The Param object contains all configuration settings for running gpredomics algorithms
-including genetic algorithm parameters, data parameters, cross-validation settings, etc.
+The Param object contains all configuration settings for running gpredomics algorithms.
+It organizes parameters into logical groups:
+\\itemize{
+\\item \\strong{General}: Algorithm type, seed, threads, penalties, GPU settings
+\\item \\strong{Data}: Input paths, feature selection, class handling
+\\item \\strong{GA}: Genetic algorithm parameters (population size, epochs, mutation rates)
+\\item \\strong{BEAM}: Beam search parameters (k_start, k_stop, method)
+\\item \\strong{MCMC}: MCMC parameters (iterations, burn-in, lambda)
+\\item \\strong{CV}: Cross-validation settings (folds, overfit penalty, stratification)
+\\item \\strong{Voting}: Jury ensemble parameters (voting method, thresholds)
+\\item \\strong{Importance}: Feature importance computation settings
+}
+
+Parameters can be loaded from YAML files or set programmatically using setter methods.
 }
 \section{Methods}{
 
-\describe{
-\item{\code{new()}}{Create a new empty Param object.}
-\item{\code{load(file_path)}}{Load a param.yaml file to create a new Param.
-\itemize{
-\item \code{file_path}: Path to param.yaml file
-}
-}
-\item{\code{get()}}{Returns an R list representing the current state of Param with all settings.}
-\item{\code{set(variable, value)}}{Set a numeric parameter by name.
-\itemize{
-\item \code{variable}: Name of the parameter to set
-\item \code{value}: New numeric value for the parameter
-}
-}
-\item{\code{set_string(variable, string)}}{Set a string parameter by name.
-\itemize{
-\item \code{variable}: Name of the parameter to set
-\item \code{string}: New string value for the parameter
-}
-}
-\item{\code{set_bool(variable, value)}}{Set a boolean parameter by name.
-\itemize{
-\item \code{variable}: Name of the parameter to set
-\item \code{value}: New boolean value for the parameter
-}
-}
-\item{\code{address()}}{Get memory address of this Param object as a string.}
+\\describe{
+\\item{\\code{new()}}{Create a new empty Param object with default values.}
+\\item{\\code{load(file_path)}}{Load parameters from a YAML configuration file.}
+\\item{\\code{get()}}{Returns an R list with all current parameter values organized by group.}
+\\item{\\code{set(variable, value)}}{Set a numeric parameter by name.}
+\\item{\\code{set_string(variable, string)}}{Set a string parameter by name.}
+\\item{\\code{set_bool(variable, value)}}{Set a boolean parameter by name.}
+\\item{\\code{save(file_path)}}{Save current parameter configuration to a YAML file.}
+\\item{\\code{clone()}}{Create an independent copy of this Param object.}
+\\item{\\code{address()}}{Get memory address of this Param object.}
 }
 }
 

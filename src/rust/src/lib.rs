@@ -1,18 +1,21 @@
+//! gpredomicsR: R bindings for gpredomics library
+//! 
+
 #![allow(non_snake_case)]
 
 // Note: extendr only export the documentation above impl blocks
 // It's then necessary to repeat the struct documentation above impl blocks
 // to have them appear in the R documentation.
 
-///////////////////////////////////////////////////////////////
-/// Main dependencies
-///////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+// Main dependencies
+//-----------------------------------------------------------------------------
 
 use extendr_api::prelude::*;
 use extendr_api::wrapper::symbol::{names_symbol, row_names_symbol};
 use gpredomics::individual::AdditionalMetrics;
-use gpredomics::individual::{RAW_TYPE, PREVALENCE_TYPE, LOG_TYPE};
-use gpredomics::individual::{BINARY_LANG, TERNARY_LANG, POW2_LANG, RATIO_LANG, MCMC_GENERIC_LANG};
+use gpredomics::individual::{RAW_TYPE, PREVALENCE_TYPE, LOG_TYPE, data_type};
+use gpredomics::individual::{BINARY_LANG, TERNARY_LANG, POW2_LANG, RATIO_LANG, MCMC_GENERIC_LANG, language};
 use gpredomics::param::Param as GParam;
 use gpredomics::data::Data as GData;
 use gpredomics::data::{FeatureAnnotations, SampleAnnotations};
@@ -38,18 +41,49 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::ThreadPoolBuilder;
 use rayon::iter::ParallelIterator;
 
+//-----------------------------------------------------------------------------
+// Functions enabling clean logging on the R side
+//-----------------------------------------------------------------------------
+
+/// Displays an informational message in R console.
+///
+/// # Arguments
+///
+/// * `msg` - Message content to display
+///
+/// # Returns
+///
+/// Unit type (no return value)
 #[inline]
 fn r_message(msg: impl AsRef<str>) {
     let safe_msg = msg.as_ref().replace("\"", "\\\"");
     let _ = extendr_api::eval_string(&format!("message(\"gpredomicsR: {}\")", safe_msg));
 }
 
+/// Displays a warning message in R console.
+///
+/// # Arguments
+///
+/// * `msg` - Warning message content
+///
+/// # Returns
+///
+/// Unit type (no return value)
 #[inline]
 fn r_warning(msg: impl AsRef<str>) {
     let safe_msg = msg.as_ref().replace("\"", "\\\"");
     let _ = extendr_api::eval_string(&format!("warning(\"gpredomicsR: {}\")", safe_msg));
 }
 
+/// Creates and displays an error in R console.
+///
+/// # Arguments
+///
+/// * `msg` - Error message content
+///
+/// # Returns
+///
+/// An Error object that can be used with the `?` operator
 #[inline]
 fn r_error(msg: impl AsRef<str>) -> Error {
     let safe_msg = msg.as_ref().replace("\"", "\\\"");
@@ -57,22 +91,33 @@ fn r_error(msg: impl AsRef<str>) -> Error {
     Error::from(format!("gpredomicsR: {}", msg.as_ref()))
 }
 
+/// Prints an error message to R console without returning Error.
+///
+/// # Arguments
+///
+/// * `msg` - Error message content
+///
+/// # Returns
+///
+/// Unit type (no return value)
 #[inline]
 fn r_print_error(msg: impl AsRef<str>) {
     let safe_msg = msg.as_ref().replace("\"", "\\\"");
     let _ = extendr_api::eval_string(&format!("stop(\"gpredomicsR: {}\")", safe_msg));
 }
 
-/// Reconstruct a Data subset from a full dataset using sample IDs.
+/// Reconstructs a Data subset from a full dataset using sample IDs.
 /// 
 /// This function is used to extract cross-validation fold data by matching
 /// sample IDs from the fold specification to the full training dataset.
 /// 
 /// # Arguments
+/// 
 /// * `full_data` - The complete dataset containing all samples
 /// * `sample_ids` - Vector of sample IDs to extract
 /// 
 /// # Returns
+/// 
 /// A new GData object containing only the specified samples
 fn reconstruct_fold_data(full_data: &GData, sample_ids: &[String]) -> GData {
     let indices: Vec<usize> = sample_ids
@@ -85,10 +130,11 @@ fn reconstruct_fold_data(full_data: &GData, sample_ids: &[String]) -> GData {
     full_data.subset(indices)
 }
 
-///////////////////////////////////////////////////////////////
-/// Running Flag
-///////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+// Running Flag object
+//-----------------------------------------------------------------------------
 
+/// Struct to manage the running flag for controlling algorithm execution.
 #[derive(Debug, Clone)]
 #[extendr]
 pub struct RunningFlag {
@@ -97,11 +143,20 @@ pub struct RunningFlag {
 
 /// @title RunningFlag
 /// @name RunningFlag
-/// @description A struct to manage the running flag for controlling algorithm execution.
+/// @description A thread-safe flag for controlling algorithm execution.
 /// 
 /// @details
-/// The RunningFlag object allows you to control the execution of long-running algorithms.
-/// It can be used to stop algorithms gracefully from another thread or after user interruption.
+/// The RunningFlag object provides a thread-safe mechanism to control the execution 
+/// of long-running algorithms. It uses atomic operations internally to ensure safe 
+/// concurrent access from multiple threads.
+/// 
+/// Common use cases:
+/// \itemize{
+///   \item Stopping algorithms gracefully from another thread
+///   \item Handling user interruption signals
+///   \item Monitoring algorithm execution state
+///   \item Coordinating between R and Rust threads
+/// }
 /// 
 /// @section Methods:
 /// \describe{
@@ -114,20 +169,32 @@ pub struct RunningFlag {
 /// @export
 #[extendr]
 impl RunningFlag {
+    /// @title Create new RunningFlag
+    /// @description Create a new RunningFlag with the flag initially set to TRUE.
+    /// @return A new RunningFlag instance
     pub fn new() -> Self {
         Self {
             flag: Arc::new(AtomicBool::new(true)),
         }
     }
 
+    /// @title Stop algorithm execution
+    /// @description Stop the algorithm execution by setting the flag to FALSE.
+    /// @return NULL (invisible)
     pub fn stop(&self) {
         self.flag.store(false, Ordering::Relaxed);
     }
 
+    /// @title Check running status
+    /// @description Check if the algorithm should continue running.
+    /// @return TRUE if algorithm should continue, FALSE otherwise
     pub fn is_running(&self) -> bool {
         self.flag.load(Ordering::Relaxed)
     }
 
+    /// @title Reset running flag
+    /// @description Reset the running flag to TRUE.
+    /// @return NULL (invisible)
     pub fn reset(&self) {
         self.flag.store(true, Ordering::Relaxed);
     }
@@ -135,16 +202,23 @@ impl RunningFlag {
 }
 
 impl RunningFlag {
-    /// Get a clone of the inner Arc (useful for passing to long-running functions).
+    /// Gets a clone of the internal Arc for passing to algorithms.
+    ///
+    /// # Arguments
+    ///
+    /// None
+    ///
+    /// # Returns
+    ///
+    /// A cloned Arc<AtomicBool> that can be shared with long-running functions
     fn get_arc(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.flag)
     }
 }
 
-///////////////////////////////////////////////////////////////
-/// Param object
-///////////////////////////////////////////////////////////////
-
+//-----------------------------------------------------------------------------
+// Param object
+//-----------------------------------------------------------------------------
 
 #[extendr]
 #[derive(Clone)]
@@ -154,45 +228,43 @@ pub struct Param {
 
 /// @title Param
 /// @name Param
-/// @description Gpredomics parameter object that stores all algorithm settings.
+/// @description Comprehensive parameter configuration for Gpredomics algorithms.
 /// 
 /// @details
-/// The Param object contains all configuration settings for running gpredomics algorithms
-/// including genetic algorithm parameters, data parameters, cross-validation settings, etc.
+/// The Param object contains all configuration settings for running gpredomics algorithms.
+/// It organizes parameters into logical groups:
+/// \\itemize{
+///   \\item \\strong{General}: Algorithm type, seed, threads, penalties, GPU settings
+///   \\item \\strong{Data}: Input paths, feature selection, class handling
+///   \\item \\strong{GA}: Genetic algorithm parameters (population size, epochs, mutation rates)
+///   \\item \\strong{BEAM}: Beam search parameters (k_start, k_stop, method)
+///   \\item \\strong{MCMC}: MCMC parameters (iterations, burn-in, lambda)
+///   \\item \\strong{CV}: Cross-validation settings (folds, overfit penalty, stratification)
+///   \\item \\strong{Voting}: Jury ensemble parameters (voting method, thresholds)
+///   \\item \\strong{Importance}: Feature importance computation settings
+/// }
+/// 
+/// Parameters can be loaded from YAML files or set programmatically using setter methods.
 /// 
 /// @section Methods:
-/// \describe{
-///   \item{\code{new()}}{Create a new empty Param object.}
-///   \item{\code{load(file_path)}}{Load a param.yaml file to create a new Param. 
-///     \itemize{
-///       \item \code{file_path}: Path to param.yaml file
-///     }
-///   }
-///   \item{\code{get()}}{Returns an R list representing the current state of Param with all settings.}
-///   \item{\code{set(variable, value)}}{Set a numeric parameter by name.
-///     \itemize{
-///       \item \code{variable}: Name of the parameter to set
-///       \item \code{value}: New numeric value for the parameter
-///     }
-///   }
-///   \item{\code{set_string(variable, string)}}{Set a string parameter by name.
-///     \itemize{
-///       \item \code{variable}: Name of the parameter to set
-///       \item \code{string}: New string value for the parameter
-///     }
-///   }
-///   \item{\code{set_bool(variable, value)}}{Set a boolean parameter by name.
-///     \itemize{
-///       \item \code{variable}: Name of the parameter to set
-///       \item \code{value}: New boolean value for the parameter
-///     }
-///   }
-///   \item{\code{address()}}{Get memory address of this Param object as a string.}
+/// \\describe{
+///   \\item{\\code{new()}}{Create a new empty Param object with default values.}
+///   \\item{\\code{load(file_path)}}{Load parameters from a YAML configuration file.}
+///   \\item{\\code{get()}}{Returns an R list with all current parameter values organized by group.}
+///   \\item{\\code{set(variable, value)}}{Set a numeric parameter by name.}
+///   \\item{\\code{set_string(variable, string)}}{Set a string parameter by name.}
+///   \\item{\\code{set_bool(variable, value)}}{Set a boolean parameter by name.}
+///   \\item{\\code{save(file_path)}}{Save current parameter configuration to a YAML file.}
+///   \\item{\\code{clone()}}{Create an independent copy of this Param object.}
+///   \\item{\\code{address()}}{Get memory address of this Param object.}
 /// }
 /// 
 /// @export
 #[extendr]
 impl Param {
+    /// @title Create new Param
+    /// @description Create a new empty Param object with default values.
+    /// @return A new Param instance
     pub fn new() -> Self {
         Self {
             intern: GParam::new()
@@ -215,10 +287,9 @@ impl Param {
     } 
 
 
-    /// @title Get Parameter description
-    /// @name Param$get
-    /// @description Returns an R list representing the current state of Param with all settings.
-    /// @return R object containing parameter details
+    /// @title Get parameter values
+    /// @description Get an R list representing the current state of Param with all settings.
+    /// @return R list containing parameter details organized by group (general, data, ga/beam/mcmc, cv, voting)
     pub fn get(&self) -> Robj {
         // Convert General fields
         let general = List::from_pairs(vec![
@@ -275,8 +346,8 @@ impl Param {
             ("max_epochs", Robj::from(self.intern.ga.max_epochs)),
             ("min_epochs", Robj::from(self.intern.ga.min_epochs)),
             ("max_age_best_model", Robj::from(self.intern.ga.max_age_best_model)),
-            ("kmin", Robj::from(self.intern.ga.kmin)),
-            ("kmax", Robj::from(self.intern.ga.kmax)),
+            ("k_min", Robj::from(self.intern.ga.k_min)),
+            ("k_max", Robj::from(self.intern.ga.k_max)),
             ("select_elite_pct", Robj::from(self.intern.ga.select_elite_pct)),
             ("select_niche_pct", Robj::from(self.intern.ga.select_niche_pct)),
             ("select_random_pct", Robj::from(self.intern.ga.select_random_pct)),
@@ -292,8 +363,8 @@ impl Param {
         // Convert GA fields
         let beam = List::from_pairs(vec![
             ("method", Robj::from(format!("{:?}", self.intern.beam.method))),
-            ("kmin", Robj::from(self.intern.beam.kmin)),
-            ("kmax", Robj::from(self.intern.beam.kmax)),
+            ("k_start", Robj::from(self.intern.beam.k_start)),
+            ("k_stop", Robj::from(self.intern.beam.k_stop)),
             ("best_models_criterion", Robj::from(self.intern.beam.best_models_criterion)),            
             ("max_nb_of_models", Robj::from(self.intern.beam.max_nb_of_models)),
         ]);
@@ -309,9 +380,9 @@ impl Param {
 
 
         // Convert Importance fields
-        let importance = List::from_pairs(vec![
+        let _importance = List::from_pairs(vec![
             ("compute_importance", Robj::from(self.intern.importance.compute_importance)),
-            ("n_permutations_oob",Robj::from(self.intern.importance.n_permutations_oob)),
+            ("n_permutations_mda",Robj::from(self.intern.importance.n_permutations_mda)),
             ("scaled_importance", Robj::from(self.intern.importance.scaled_importance)),
             ("importance_aggregation", Robj::from(format!("{:?}",self.intern.importance.importance_aggregation)))
         ]);
@@ -339,26 +410,50 @@ impl Param {
             ("complete_display", Robj::from(self.intern.voting.complete_display)),
             ("prune_before_voting", Robj::from(self.intern.voting.prune_before_voting)),
         ]);
-
+ 
+        let param_list = match &self.intern.general.algo {
+            algo if algo.to_lowercase() == "ga" => {
+                List::from_pairs(vec![
+                    ("general", Robj::from(general)),
+                    ("data", Robj::from(data)),
+                    ("ga", Robj::from(ga)),
+                    ("cv", Robj::from(cv)),
+                    ("voting", Robj::from(voting)),
+                ])
+            },
+            algo if algo.to_lowercase() == "beam" => {
+                List::from_pairs(vec![
+                    ("general", Robj::from(general)),
+                    ("data", Robj::from(data)),
+                    ("beam", Robj::from(beam)),
+                    ("cv", Robj::from(cv)),
+                    ("voting", Robj::from(voting)),
+                ])
+            },
+            algo if algo.to_lowercase() == "mcmc" => { 
+                List::from_pairs(vec![
+                    ("general", Robj::from(general)),
+                    ("data", Robj::from(data)),
+                    ("mcmc", Robj::from(mcmc))
+                ])
+            },
+            _ => {
+                 List::from_pairs(vec![
+                    ("general", Robj::from(general)),
+                    ("data", Robj::from(data)),
+                ])
+            }
+        };
         // Combine all sections into a single R list object
-        let param_list = List::from_pairs(vec![
-            ("general", Robj::from(general)),
-            ("data", Robj::from(data)),
-            ("ga", Robj::from(ga)),
-            ("beam", Robj::from(beam)),
-            ("mcmc", Robj::from(mcmc)),
-            ("importance", Robj::from(importance)),
-            ("cv", Robj::from(cv)),
-            ("voting", Robj::from(voting)),
-        ]);
-
+         
         Robj::from(param_list)
     }   
 
+    /// @title Set numeric parameter
     /// @description Set a numeric parameter by name.
     /// @param variable Name of the parameter to set
     /// @param value New numeric value for the parameter
-    /// @export 
+    /// @return NULL (invisible)
     pub fn set(&mut self, variable: &str, value: f64) {
         match variable {
             // General parameters
@@ -389,8 +484,8 @@ impl Param {
             "max_epochs" => self.intern.ga.max_epochs = value as usize,
             "min_epochs" => self.intern.ga.min_epochs = value as usize,
             "max_age_best_model" => self.intern.ga.max_age_best_model = value as usize,
-            "k_min" => self.intern.ga.kmin = value as usize,
-            "k_max" => self.intern.ga.kmax = value as usize,
+            "k_min" => self.intern.ga.k_min = value as usize,
+            "k_max" => self.intern.ga.k_max = value as usize,
             "select_elite_pct" => self.intern.ga.select_elite_pct = value,
             "select_niche_pct" => self.intern.ga.select_niche_pct = value,
             "select_random_pct" => self.intern.ga.select_random_pct = value,
@@ -406,6 +501,8 @@ impl Param {
             // BEAM parameters
             "best_models_criterion" => self.intern.beam.best_models_criterion = value,
             "max_nb_of_models" => self.intern.beam.max_nb_of_models = value as usize,
+            "k_start" => self.intern.beam.k_start = value as usize,
+            "k_stop" => self.intern.beam.k_stop = value as usize,
             
             // MCMC parameters
             "n_iter" => self.intern.mcmc.n_iter = value as usize,
@@ -428,7 +525,7 @@ impl Param {
             "threshold_windows_pct" => self.intern.voting.threshold_windows_pct = value,
             
             // Importance parameters
-            "n_permutations_oob" => self.intern.importance.n_permutations_oob = value as usize,
+            "n_permutations_mda" => self.intern.importance.n_permutations_mda = value as usize,
             
             // GPU parameters
             "max_total_memory_mb" => self.intern.gpu.max_total_memory_mb = value as u64,
@@ -442,17 +539,26 @@ impl Param {
     }
 
     /// @title Get memory address
-    /// @name Param$address
-    /// @description Get memory address of this Param object
+    /// @description Get memory address of this Param object.
     /// @return String representing the memory address
     pub fn address(&self) -> String {
         format!("0x{:p}", &self.intern)
     }
 
+    /// @title Clone Param object
+    /// @description Clone this Param object to create an independent copy.
+    /// @return A new Param object with the same configuration
+    pub fn clone(&self) -> Self {
+        Self {
+            intern: self.intern.clone()
+        }
+    }
+
+    /// @title Set string parameter
     /// @description Set a string parameter by name.
     /// @param variable Name of the parameter to set
     /// @param string New string value for the parameter
-    /// @export
+    /// @return NULL (invisible)
     pub fn set_string(&mut self, variable: &str, string: String) {
         match variable {
             "stratify_by" => self.intern.cv.stratify_by = string,
@@ -503,10 +609,11 @@ impl Param {
         }
     }
 
+    /// @title Set boolean parameter
     /// @description Set a boolean parameter by name.
     /// @param variable Name of the parameter to set
     /// @param value New boolean value for the parameter
-    /// @export
+    /// @return NULL (invisible)
     pub fn set_bool(&mut self, variable: &str, value: bool) {
         match variable {
             // General parameters
@@ -542,23 +649,33 @@ impl Param {
             }
     }
 
+    /// @title Save parameters to file
+    /// @description Save the current Param configuration to a YAML file.
+    /// @param file_path Path to save the YAML file
+    /// @return The file path where the Param was saved
+    pub fn save(&self, file_path: String) -> Result<String> {
+        self.intern.save(file_path.clone()).map_err(|e| {
+            r_error(&format!("Failed to save Param to {}: {}", file_path, e))
+        })?; 
+        Ok(file_path)
+    }
+
 }
 
-///////////////////////////////////////////////////////////////
-/// Data object
-///////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+// Data object
+//-----------------------------------------------------------------------------
 
-/// Convert a sparse matrix (HashMap) to an R data.frame.
-/// 
-/// This internal helper function transforms a sparse matrix representation into an R data.frame.
-/// Missing entries in the sparse matrix are filled with 0.0.
+/// Converts a sparse matrix to an R data.frame.
 /// 
 /// # Arguments
+///
 /// * `matrix` - Sparse matrix as HashMap with keys (col_index, row_index) and f64 values
 /// * `column_names` - Names for each column (length must equal number of columns)
 /// * `row_names` - Names for each row (length must equal number of rows)
 /// 
 /// # Returns
+/// 
 /// An R data.frame object with the specified dimensions and names
 fn sparse_matrix_to_dataframe(
     matrix: &HashMap<(usize, usize), f64>,
@@ -583,6 +700,17 @@ fn sparse_matrix_to_dataframe(
 
 }
 
+/// Converts feature tags to an R data.frame with named columns.
+///
+/// # Arguments
+///
+/// * `tags` - HashMap mapping feature indices to vectors of tag strings
+/// * `features` - Vector of all feature names
+/// * `tag_column_names` - Names for tag columns
+///
+/// # Returns
+///
+/// An R data.frame with feature names and tag columns, or empty Robj if no tags
 fn feature_tags_to_dataframe_named(
     tags: &HashMap<usize, Vec<String>>,
     features: &[String],
@@ -655,6 +783,18 @@ fn feature_tags_to_dataframe_named(
 }
 
 
+/// Processes R feature annotation objects into FeatureAnnotations struct.
+///
+/// # Arguments
+///
+/// * `features` - Vector of feature names from the dataset
+/// * `prior_weight_robj` - Optional R named numeric vector for prior weights
+/// * `feature_penalty_robj` - Optional R named numeric vector for penalties
+/// * `feature_tags_robj` - Optional R data.frame with feature tags
+///
+/// # Returns
+///
+/// A FeatureAnnotations struct containing processed annotations
 /// Convert R named vectors and data.frame to FeatureAnnotations
 fn process_feature_annotations(
     features: &[String],
@@ -774,6 +914,16 @@ fn process_feature_annotations(
     })
 }
 
+/// Processes R sample annotation objects into SampleAnnotations struct.
+///
+/// # Arguments
+///
+/// * `samples` - Vector of sample names from the dataset
+/// * `sample_tags_robj` - Optional R data.frame with sample tags
+///
+/// # Returns
+///
+/// A SampleAnnotations struct containing processed sample metadata
 /// Convert R stratification vector and data.frame to SampleAnnotations
 fn process_sample_annotations(
     samples: &[String],
@@ -847,6 +997,17 @@ fn process_sample_annotations(
 }
 
 
+/// Converts sample tags to an R data.frame with named columns.
+///
+/// # Arguments
+///
+/// * `tags` - HashMap mapping sample indices to vectors of tag strings
+/// * `samples` - Vector of all sample names
+/// * `tag_column_names` - Names for tag columns
+///
+/// # Returns
+///
+/// An R data.frame with sample names and tag columns, or empty Robj if no tags
 fn sample_tags_to_dataframe_named(
     tags: &HashMap<usize, Vec<String>>,
     samples: &[String],
@@ -926,18 +1087,15 @@ fn sample_tags_to_dataframe_named(
     Robj::from(df)
 }
 
-
-
-/// Convert a sparse vector (HashMap usize f64) to a dense integer vector for R.
-/// 
-/// This internal helper converts a sparse representation into a dense vector,
-/// filling missing indices with zeros.
+/// Converts a sparse f64 vector to a dense integer vector for R.
 /// 
 /// # Arguments
-/// * `vector` - Sparse vector as HashMap with usize keys (indices) and u8 values
+/// 
+/// * `vector` - Sparse vector as HashMap with usize keys (indices) and f64 values
 /// * `length` - Length of the resulting dense vector
 /// 
 /// # Returns
+/// 
 /// An R integer vector of the specified length
 fn sparse_vector_to_vector_usize_f64(vector: &HashMap<usize, f64>, length: usize) -> Robj {
     // Create a dense vector initialized with zeros
@@ -952,16 +1110,15 @@ fn sparse_vector_to_vector_usize_f64(vector: &HashMap<usize, f64>, length: usize
     Robj::from(dense_vector)
 }
 
-/// Convert a sparse vector (HashMap usize u8) to a dense integer vector for R.
-/// 
-/// This internal helper converts a sparse representation into a dense vector,
-/// filling missing indices with zeros.
+/// Converts a sparse u8 vector to a dense integer vector for R.
 /// 
 /// # Arguments
+/// 
 /// * `vector` - Sparse vector as HashMap with usize keys (indices) and u8 values
 /// * `length` - Length of the resulting dense vector
 /// 
 /// # Returns
+/// 
 /// An R integer vector of the specified length
 fn sparse_vector_to_vector_usize_u8(vector: &HashMap<usize, u8>, length: usize) -> Robj {
     // Create a dense vector initialized with zeros
@@ -1125,29 +1282,53 @@ pub fn as_gpredomics_data(
 
         if let Some(lv) = levels {
             // Factor: preserve level order by code (1-based)
-            // Allow unknowns (values outside the two main levels) → classified as 2
-            let valid_codes: Vec<i32> = uniq.iter().filter(|&&code| code >= 1 && (code as usize) <= lv.len()).copied().collect();
+            // Allow unknowns (values outside the two main levels or NA) → classified as 2
+            // Note: R represents NA in integer vectors as i32::MIN (R_NaInt)
+            const R_NA_INT: i32 = i32::MIN;
             
-            if valid_codes.len() < 2 {
-                return Err(r_error(&format!("y factor must have at least two valid levels; found {}.", valid_codes.len())));
+            let valid_codes: Vec<i32> = uniq.iter()
+                .filter(|&&code| code != R_NA_INT && code >= 1 && (code as usize) <= lv.len())
+                .copied()
+                .collect();
+            
+            // Check if we have at least 2 defined levels in the factor
+            if lv.len() < 2 {
+                return Err(r_error(&format!("y factor must have at least two defined levels; found {}.", lv.len())));
             }
             
-            // Use first two valid codes only
-            let code0 = valid_codes[0];
-            let code1 = valid_codes[1];
-            let class0 = lv[(code0 - 1) as usize].clone();
-            let class1 = lv[(code1 - 1) as usize].clone();
+            let (code0, code1, class0, class1) = if valid_codes.len() < 2 {
+                // Not enough valid codes in data (could be all NA or only 1 class)
+                // Use first two factor levels as reference classes for prediction
+                r_warning(&format!("Only {} valid class(es) found in data; using first two factor levels ('{}', '{}') as reference for prediction.", valid_codes.len(), lv[0], lv[1]));
+                (1, 2, lv[0].clone(), lv[1].clone())
+            } else {
+                // Use first two valid codes present in data
+                let code0 = valid_codes[0];
+                let code1 = valid_codes[1];
+                (code0, code1, lv[(code0 - 1) as usize].clone(), lv[(code1 - 1) as usize].clone())
+            };
             
-            // Map: code0→0, code1→1, others→2 (unknown)
+            // Map: code0→0, code1→1, NA or others→2 (unknown)
             let mapped: Vec<u8> = vals.iter().map(|&z| {
-                if z == code0 { 0 }
-                else if z == code1 { 1 }
-                else { 2 } // Unknown class
+                if z == R_NA_INT {
+                    2  // NA → unknown
+                } else if z == code0 {
+                    0
+                } else if z == code1 {
+                    1
+                } else {
+                    2  // Other values → unknown
+                }
             }).collect();
             
-            let unknown_count = mapped.iter().filter(|&&x| x == 2).count();
-            if unknown_count > 0 {
-                r_warning(&format!("{} samples with values outside the two main factor levels will be classified as 'unknown' (class 2).", unknown_count));
+            let na_count = vals.iter().filter(|&&z| z == R_NA_INT).count();
+            let other_count = mapped.iter().filter(|&&x| x == 2).count() - na_count;
+            
+            if na_count > 0 {
+                r_warning(&format!("{} samples with NA values will be classified as 'unknown' (class 2).", na_count));
+            }
+            if other_count > 0 {
+                r_warning(&format!("{} samples with values outside the two main factor levels will be classified as 'unknown' (class 2).", other_count));
             }
             
             (mapped, vec![class0, class1, "unknown".to_string()])
@@ -1343,30 +1524,46 @@ pub struct Data {
 
 /// @title Data
 /// @name Data
-/// @description Gpredomics Data object containing feature matrix and labels.
+/// @description Feature matrix and labels for Gpredomics machine learning.
 /// 
 /// @details
-/// The Data object stores the feature matrix (X), labels (y), sample names, feature names,
-/// and other metadata needed for machine learning algorithms.
+/// The Data object stores the complete dataset for machine learning:
+/// \\itemize{
+///   \\item \\strong{Feature matrix (X)}: Sparse representation of sample x feature values
+///   \\item \\strong{Labels (y)}: Binary or multi-class classification labels  
+///   \\item \\strong{Sample metadata}: Sample names and optional annotations/tags
+///   \\item \\strong{Feature metadata}: Feature names, selection info, and optional annotations
+///   \\item \\strong{Class information}: Class labels and distribution
+/// }
+/// 
+/// The sparse matrix representation efficiently handles high-dimensional omics data
+/// with many zero values. Optional annotations support stratified sampling and 
+/// feature weighting.
 /// 
 /// @section Methods:
-/// \describe{
-///   \item{\code{new()}}{Create a new empty Data object.}
-///   \item{\code{get()}}{Returns an R list with all Data fields (X, y, features, samples, etc.).}
-///   \item{\code{address()}}{Get memory address of this Data object as a string.}
-///   \item{\code{print()}}{Get a formatted string summary of the Data dimensions and content.}
-///   \item{\code{train_test_split(test_ratio, stratify_by, seed)}}{Stratified train/test split. Parameters: test_ratio (fraction for test set, 0-1), stratify_by (optional column name in sample annotations for double stratification), seed (optional random seed). Returns a list with train and test Data objects.}
+/// \\describe{
+///   \\item{\\code{new()}}{Create a new empty Data object.}
+///   \\item{\\code{get()}}{Returns an R list with all Data fields (X, y, features, samples, annotations).}
+///   \\item{\\code{address()}}{Get memory address of this Data object.}
+///   \\item{\\code{print()}}{Get formatted string summary of Data dimensions and content.}
+///   \\item{\\code{train_test_split(test_ratio, stratify_by, seed)}}{Perform stratified train/test split with optional double stratification.}
 /// }
 /// 
 /// @export
 #[extendr]
 impl Data {
+    /// @title Create new Data
+    /// @description Create a new empty Data object.
+    /// @return A new empty Data instance
     pub fn new() -> Self {
         Self {
             intern: GData::new()
         }
     }
 
+    /// @title Get data contents
+    /// @description Get an R list with all Data fields (X, y, features, samples, annotations).
+    /// @return R list containing all Data components organized by category
     pub fn get(&self) -> Robj {
         // Convert Data fields to R objects
         let mut pairs = vec![
@@ -1421,10 +1618,15 @@ impl Data {
         Robj::from(List::from_pairs(pairs))
     }
 
+    /// @description Get memory address of this Data object.
+    /// @return String representing the memory address
     pub fn address(&self) -> String {
         format!("0x{:p}", &self.intern as *const _)
     }
     
+    /// @title Print data summary
+    /// @description Get formatted string summary of Data dimensions and content.
+    /// @return String with formatted summary of Data structure
     pub fn print(&self) -> String {
         let addr = self.address();
         
@@ -1521,12 +1723,12 @@ impl Data {
         )
     }
 
-    // @title Train/test split on Gpredomics Data
-    /// @description Stratified split by class, with optional stratification by sample annotation.
-    /// @param test_ratio Fraction of samples in test set (0 < test_ratio < 1).
-    /// @param stratify_by Optional column name in sample annotations for double stratification.
-    /// @param seed Optional integer seed for reproducibility.
-    /// @return A list with elements `train` and `test` (both Data objects).
+    /// @title Split data into train/test sets
+    /// @description Perform stratified train/test split with optional double stratification.
+    /// @param test_ratio Proportion of samples to use for testing (0 < test_ratio < 1)
+    /// @param stratify_by Optional stratification column name from sample annotations
+    /// @param seed Optional seed for reproducibility (default: 42)
+    /// @return R list with 'train' and 'test' Data objects
     pub fn train_test_split(
         &self,
         test_ratio: f64,
@@ -1571,13 +1773,17 @@ pub struct Individual {
 
 impl Individual {
     
-    /// Create a new Individual object from a GIndividual.
-    /// This internal constructor wraps a Rust GIndividual with shared references\n    
-    /// to Data and Param for use in the R interface.
+    /// Creates a new Individual wrapper from internal representation.
+    ///
     /// # Arguments
+    ///
     /// * `ind` - Reference to the internal GIndividual
     /// * `data` - Shared reference to the training data
     /// * `param` - Shared reference to algorithm parameters
+    ///
+    /// # Returns
+    ///
+    /// A new Individual object wrapping the provided components
     pub fn new(ind: &GIndividual, data: Arc<GData>, param: Arc<GParam>) -> Self {
         Self {
             intern: ind.clone(),
@@ -1590,48 +1796,47 @@ impl Individual {
 
 /// @title Individual
 /// @name Individual
-/// @description A single predictive model from the Gpredomics algorithm
+/// @description A single predictive model from the Gpredomics algorithm.
+/// 
 /// @details 
 /// Individual represents a single model (individual) in the population.
-/// It contains:
-/// - Feature set with coefficients (sparse representation)
-/// - Performance metrics (AUC, accuracy, sensitivity, specificity, fit value)
-/// - Optional threshold confidence interval and rejection rate
-/// - Optional beta coefficients for certain model types
-/// - Optional additional metrics (MCC, NPV, PPV, F1-score, G-mean)
-/// - Genealogical information (parents, generation/epoch)
+/// It encapsulates:
+/// \itemize{
+///   \item Feature set with coefficients (sparse representation)
+///   \item Performance metrics (AUC, accuracy, sensitivity, specificity, fit value)
+///   \item Optional threshold confidence interval and rejection rate
+///   \item Optional beta coefficients for certain model types
+///   \item Optional additional metrics (MCC, NPV, PPV, F1-score, G-mean)
+///   \item Genealogical information (parents, generation/epoch)
+/// }
 /// 
 /// @section Methods:
 /// \describe{
-///   \item{\code{get()}}{Get complete individual description including all fields and metrics}
-///   \item{\code{get_metrics()}}{Get base metrics (AUC, fit, accuracy, sensitivity, specificity, threshold, rejection_rate)}
-///   \item{\code{compute_metrics(data)}}{Compute all metrics including additional ones (MCC, NPV, PPV, F1-score, G-mean) on new data}
-///   \item{\code{predict(data)}}{Predict classes and scores for samples in the provided Data object}
-///   \item{\code{fit(data, param)}}{Refit individual on new data with complete metric computation including penalties}
-///   \item{\code{refit()}}{Refit individual on its associated data using complete Gpredomics logic}
-///   \item{\code{evaluate()}}{Compute prediction scores on associated data}
-///   \item{\code{to_string()}}{Get debug string representation}
-///   \item{\code{address()}}{Get memory address as hexadecimal string}
-///   \item{\code{print()}}{Print formatted individual summary to console}
-///   \item{\code{set_threshold(threshold)}}{Set prediction threshold for binary classification}
-///   \item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute OOB permutation feature importance}
-///   \item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Remove low-importance features using absolute threshold}
-///   \item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Remove low-importance features using quantile threshold}
-///   \item{\code{get_genealogy(experiment, max_depth)}}{Retrieve ancestry tree across generations for visualization}
-///   \item{\code{explain_sample(data, sample_index)}}{Explain individual prediction for one sample with feature contributions. Parameters: data (Data object), sample_index (1-based R index). Returns data.frame with Feature, Value, Coefficient, Contribution, CumScore.}
+///   \item{\code{get()}}{Get complete individual description including all fields and metrics.}
+///   \item{\code{get_metrics()}}{Get base metrics (AUC, fit, accuracy, sensitivity, specificity, threshold, rejection_rate).}
+///   \item{\code{compute_metrics(data)}}{Compute all metrics including additional ones (MCC, NPV, PPV, F1-score, G-mean) on new data.}
+///   \item{\code{predict(data)}}{Predict classes and scores for samples in the provided Data object.}
+///   \item{\code{fit(data, param)}}{Refit individual on new data with complete metric computation including penalties.}
+///   \item{\code{refit()}}{Refit individual on its associated data using complete Gpredomics logic.}
+///   \item{\code{evaluate()}}{Compute prediction scores on associated data.}
+///   \item{\code{to_string()}}{Get debug string representation.}
+///   \item{\code{address()}}{Get memory address as hexadecimal string.}
+///   \item{\code{print()}}{Print formatted individual summary to console.}
+///   \item{\code{set_threshold(threshold)}}{Set prediction threshold for binary classification.}
+///   \item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute OOB permutation feature importance.}
+///   \item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Remove low-importance features using absolute threshold.}
+///   \item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Remove low-importance features using quantile threshold.}
+///   \item{\code{get_genealogy(experiment, max_depth)}}{Retrieve ancestry tree across generations for visualization.}
+///   \item{\code{explain_sample(data, sample_index)}}{Explain individual prediction for one sample with feature contributions.}
 /// }
+/// 
 /// @export
 #[extendr]
 impl Individual {
 
-    /// Create a new Individual object
-    //pub fn new() -> Self {
-    //    Self {
-    //        intern: GIndividual::new(),
-    //        features: Vec::new()
-    //    }
-    //}
-
+    /// @title Get individual details
+    /// @description Get complete individual description including all fields and metrics.
+    /// @return R list with all individual components (features, metrics, parameters, etc.)
     pub fn get(&self) -> Robj {
         let mut coeff = Vec::new();
         let mut indexes = Vec::new();
@@ -1669,15 +1874,26 @@ impl Individual {
         } else {
             Robj::from(())
         };
-        individual_fields.push(("parents", parents_robj));
-    
+        
         // Add "betas"
         let betas_robj = if let Some(betas) = &self.intern.betas {
             Robj::from(vec![betas.a, betas.b, betas.c])
         } else {
             Robj::from(())
         };
+
+        // Add "Threshold CI"
+        let threshold_ci_robj = if let Some(threshold_ci) = &self.intern.threshold_ci {
+            list!(
+                lower = threshold_ci.lower.into_robj(),
+                upper = threshold_ci.upper.into_robj(),
+            ).into_robj()
+        } else {
+            Robj::from(())
+        };
         
+        individual_fields.push(("parents", parents_robj));
+        individual_fields.push(("threshold_ci", threshold_ci_robj));
         individual_fields.push(("betas", betas_robj));
     
         let individual_robj = List::from_pairs(individual_fields);
@@ -1686,13 +1902,9 @@ impl Individual {
 
     }
 
-    /// @title Get already computed base metrics
-    /// @name Individual$get_metrics
+    /// @title Get base metrics
     /// @description Get the already computed base metrics stored in this individual (no computation).
-    /// Returns only the core metrics that are always calculated during training: AUC, fit, accuracy, 
-    /// sensitivity, specificity, threshold, and rejection_rate (if threshold_ci was computed, otherwise 0.0).
-    /// For additional metrics (MCC, NPV, PPV, F1-score, G-mean), use compute_metrics(data).
-    /// @return A list with base metrics (auc, fit, accuracy, sensitivity, specificity, threshold, rejection_rate)
+    /// @return List with base metrics (auc, fit, accuracy, sensitivity, specificity, threshold, rejection_rate)
     pub fn get_metrics(&self) -> Robj {
         let rejection_rate = self.intern.threshold_ci
             .as_ref()
@@ -1710,12 +1922,10 @@ impl Individual {
         ).into()
     }
 
-    /// @title Compute all metrics on new data
-    /// @name Individual$compute_metrics
-    /// @description Compute all metrics including base metrics (AUC, threshold, accuracy, sensitivity, specificity)
-    /// and additional metrics (MCC, NPV, PPV, F1-score, G-mean, rejection rate) on the provided Data object.
+    /// @title Compute all metrics
+    /// @description Compute all metrics including base and additional metrics on the provided Data object.
     /// @param data The Data object to compute metrics on
-    /// @return A list with all computed metrics (base + additional)
+    /// @return List with all computed metrics (base + additional: MCC, NPV, PPV, F1-score, G-mean)
     pub fn compute_metrics(&self, data: &Data) -> Robj {
         let additional_metrics = AdditionalMetrics { 
             mcc: Some(0.0),
@@ -1746,15 +1956,11 @@ impl Individual {
         ).into()
     }
 
-    /// @title Fit individual on new data
-    /// @name Individual$fit
-    /// @description Fit the individual on new data by recomputing all metrics using the complete Gpredomics fitting logic.
-    /// This includes computing AUC, threshold (with optional confidence interval and rejection rate), accuracy, sensitivity, 
-    /// specificity, fit value (with penalties), and additional metrics based on the param configuration.
+    /// @title Fit individual on data
+    /// @description Fit the individual on new data by recomputing all metrics using complete Gpredomics fitting logic.
     /// @param data The Data object to fit on
-    /// @param param The Param object containing fitting configuration (fit function, penalties, bootstrap settings, etc.)
+    /// @param param The Param object containing fitting configuration
     /// @return A new Individual with all metrics fully recomputed
-    /// @export
     pub fn fit(&self, data: &Data, param: &Param) -> Individual {
         let mut gi = self.clone();
         
@@ -1775,13 +1981,9 @@ impl Individual {
         }
     }
 
-    /// @title Refit individual on associated data
-    /// @name Individual$refit
-    /// @description Refit the individual on its associated data by recomputing all metrics using the complete Gpredomics fitting logic.
-    /// This includes computing AUC, threshold (with optional confidence interval and rejection rate), accuracy, sensitivity, 
-    /// specificity, fit value (with penalties), and additional metrics based on the param configuration.
+    /// @title Refit individual
+    /// @description Refit the individual on its associated data using complete Gpredomics fitting logic.
     /// @return A new Individual with all metrics fully recomputed
-    /// @export
     pub fn refit(&self) -> Individual {
         let mut gi = self.clone();
         
@@ -1798,44 +2000,38 @@ impl Individual {
     }
 
     /// @title Evaluate individual
-    /// @name Individual$evaluate
-    /// @description Compute individual score (evaluate on its associated data).
+    /// @description Compute individual score by evaluating on its associated data.
     /// @return R object containing the individual score
     pub fn evaluate(&self) -> Robj {
         self.intern.evaluate(&self.data).into_robj()
     }
 
-    /// @title Predict classes and scores
-    /// @name Individual$predict
+    /// @title Predict on data
     /// @description Predict classes and scores on the provided Data object.
     /// @param data The Data object to predict on
-    /// @return A list with two elements: class (predicted classes) and score (predicted scores)
+    /// @return List with two elements: class (predicted classes) and score (predicted scores)
     pub fn predict(&self, data: &Data) -> Robj {
         let (classes, scores) = self.intern.evaluate_class_and_score(&data.intern);
         list!(class=(classes.iter().map(|x| {*x as i32})).collect::<Vec<i32>>().into_robj(), score=scores.into_robj()).into()
     }
 
-    /// @title Individual to string
-    /// @name Individual$to_string
-    /// @description Return a string representation of the Individual (debug representation).
+    /// @title Get debug string
+    /// @description Get a string representation of the Individual (debug representation).
     /// @return String representation of the Individual
     pub fn to_string(&self) -> String {
         format!("{:?}",&self.intern)
     }
 
-    /// @title Individual memory address
-    /// @name Individual$address
+    /// @title Get memory address
     /// @description Get memory address of this Individual object.
     /// @return String representing the memory address
     pub fn address(&self) -> String {
         format!("0x{:p}", &self.intern as *const _)
     }
 
-    // @title Print as Gpredomics style
-    // @name Individual$print
-    /// @title Print individual (formatted)
-    /// @name Individual$print
+    /// @title Print individual summary
     /// @description Print the individual in gpredomics style to R console.
+    /// @return NULL (invisible)
     pub fn print(&self) {
         let addr = self.address();
         rprintln!("@{}", addr);
@@ -1845,10 +2041,10 @@ impl Individual {
         }
     }
 
-    /// @title Set threshold
-    /// @name Individual$set_threshold
+    /// @title Set prediction threshold
     /// @description Set the threshold of the individual used for binary predictions.
     /// @param threshold The new threshold value
+    /// @return A new Individual with updated threshold and recomputed metrics
     pub fn set_threshold(&self, threshold: f64) -> Individual {
         let mut new_intern = self.intern.clone();
 
@@ -1871,12 +2067,11 @@ impl Individual {
     }
 
     /// @title Compute feature importance
-    /// @name Individual$compute_importance
-    /// @description Compute feature importance for this individual on the provided Data using permutation (MDA-like).
+    /// @description Compute feature importance for this individual using permutation (MDA-like).
     /// @param data The Data object to compute importance on
     /// @param n_perm Number of permutations to perform (default 1000)
     /// @param seed Optional seed for random number generation
-    /// @param used_only Whether to compute importance only for features used in the individual (default true)
+    /// @param used_only Whether to compute importance only for features used in the individual (default TRUE)
     /// @return A named numeric vector of feature importances
     pub fn compute_importance(&self, data: &Data, n_perm: Option<i32>, seed: Option<u64>, used_only: Option<bool>) -> Result<Robj> {
         let permutations = n_perm.unwrap_or(1000).max(1) as usize;
@@ -1900,7 +2095,7 @@ impl Individual {
             feature_seeds.insert(f, seeds);
         }
 
-        let ic: ImportanceCollection = self.intern.compute_oob_feature_importance(&data.intern, permutations, &features_to_process, &feature_seeds); 
+        let ic: ImportanceCollection = self.intern.compute_mda_feature_importance(&data.intern, permutations, &features_to_process, &feature_seeds); 
 
         let mut feature = Vec::with_capacity(ic.importances.len());
         let mut importance = Vec::with_capacity(ic.importances.len());
@@ -2196,7 +2391,6 @@ impl Individual {
             }
         }
 
-
         // Construction explicite de la liste pour éviter les colonnes dynamiques
         let mut nodes_pairs = vec![
             ("id", Robj::from(node_id.clone())),
@@ -2258,6 +2452,155 @@ impl Individual {
         Ok(list!(nodes = nodes_df, edges = edges_df, metadata = metadata).into())
     }
 
+    /// @title Add features to Individual
+    /// @name Individual$add_feature
+    /// @description Add features to this individual by specifying feature names and coefficients.
+    /// Feature names are mapped to indices using the associated Data object.
+    /// @param feature_names Character vector of feature names to add
+    /// @param coefficients Numeric vector of coefficients for each feature
+    /// @return A new Individual with the added features
+    /// @export
+    pub fn add_feature(&self, feature_names: Vec<String>, coefficients: Vec<f64>) -> Result<Individual> {
+        if feature_names.len() != coefficients.len() {
+            return Err(r_error(format!(
+                "Length mismatch: feature_names has {} elements but coefficients has {} elements",
+                feature_names.len(),
+                coefficients.len()
+            )));
+        }
+
+        // Create a mapping from feature names to indices
+        let feature_map: HashMap<String, usize> = self.data.features
+            .iter()
+            .enumerate()
+            .map(|(idx, name)| (name.clone(), idx))
+            .collect();
+
+        // Clone the current individual
+        let mut new_ind = self.intern.clone();
+
+        // Add each feature
+        for (fname, coef) in feature_names.iter().zip(coefficients.iter()) {
+            let fidx = feature_map.get(fname)
+                .ok_or_else(|| r_error(format!("Feature '{}' not found in data", fname)))?;
+            
+            new_ind.features.insert(*fidx, *coef as i8);
+        }
+
+        // Update k (number of features)
+        new_ind.k = new_ind.features.len();
+
+        let modified_ind = Individual {
+            intern: new_ind,
+            data: self.data.clone(),
+            param: self.param.clone(),
+        };
+
+        // Refit to recompute all metrics with the new feature set
+        Ok(modified_ind.refit())
+    }
+
+    /// @title Remove features from Individual
+    /// @name Individual$remove_feature
+    /// @description Remove features from this individual by specifying feature names.
+    /// Feature names are mapped to indices using the associated Data object.
+    /// @param feature_names Character vector of feature names to remove
+    /// @return A new Individual with the specified features removed
+    /// @export
+    pub fn remove_feature(&self, feature_names: Vec<String>) -> Result<Individual> {
+        // Create a mapping from feature names to indices
+        let feature_map: HashMap<String, usize> = self.data.features
+            .iter()
+            .enumerate()
+            .map(|(idx, name)| (name.clone(), idx))
+            .collect();
+
+        // Clone the current individual
+        let mut new_ind = self.intern.clone();
+
+        // Remove each feature
+        for fname in feature_names.iter() {
+            let fidx = feature_map.get(fname)
+                .ok_or_else(|| r_error(format!("Feature '{}' not found in data", fname)))?;
+            
+            new_ind.features.remove(fidx);
+        }
+
+        // Update k (number of features)
+        new_ind.k = new_ind.features.len();
+
+        if new_ind.k == 0 {
+            r_warning("Individual has no features left after removal");
+        }
+
+        let modified_ind = Individual {
+            intern: new_ind,
+            data: self.data.clone(),
+            param: self.param.clone(),
+        };
+
+        // Refit to recompute all metrics with the modified feature set
+        Ok(modified_ind.refit())
+    }
+
+    /// @title Change language of Individual
+    /// @name Individual$change_language
+    /// @description Change the language of this individual (ratio, ter, bin, pow2).
+    /// Metrics are recomputed after changing the language using the refit() method.
+    /// Returns a new Individual with the updated language and recomputed metrics.
+    /// @param new_language New language to set (string: "ratio", "ter", "bin", or "pow2")
+    /// @return A new Individual with the changed language and recomputed metrics
+    /// @export
+    pub fn change_language(&self, new_language: String) -> Result<Individual> {
+        let mut modified_ind = self.intern.clone();
+        modified_ind.language = language(new_language.as_str());
+        
+        if modified_ind.language == BINARY_LANG {
+            r_warning("Changing language to 'bin': removing negative coefficients.");
+            modified_ind.features.retain(|_, coef| *coef >= 0);
+            modified_ind.k = modified_ind.features.len();
+        } else if self.intern.language == POW2_LANG {
+            r_warning("Changing language from 'pow2': converting each coefficient to -1 and +1.");
+            for coef in modified_ind.features.values_mut() {
+                if *coef > 0 {
+                    *coef = 1;
+                } else if *coef < 0 {
+                    *coef = -1;
+                }
+            }
+            modified_ind.k = modified_ind.features.len();
+        }
+
+        let new_ind = Individual {
+            intern: modified_ind,
+            data: self.data.clone(),
+            param: self.param.clone(),
+        };
+
+        Ok(new_ind.refit())
+    }
+
+    /// @title Change data type of Individual
+    /// @title Change data type of Individual
+    /// @name Individual$change_data_type
+    /// @description Change the data type of this individual (raw, prev, log).
+    /// Metrics are recomputed after changing the data type using the refit() method.
+    /// Returns a new Individual with the updated data type and recomputed metrics.
+    /// @param new_data_type New data type to set (string: "RAW_TYPE", "PREVALENCE_TYPE", or "LOG_TYPE")
+    /// @return A new Individual with the changed data type and recomputed metrics
+    /// @export
+    pub fn change_data_type(&self, new_data_type: String) -> Result<Individual> {
+        let mut modified_ind = self.intern.clone();
+        modified_ind.data_type = data_type(new_data_type.as_str());
+        let new_ind = Individual {
+            intern: modified_ind,
+            data: self.data.clone(),
+            param: self.param.clone(),
+        };
+        Ok(new_ind.refit())
+    }
+   
+
     /// @title Explain Individual Prediction for One Sample
     /// @name Individual$explain_sample
     /// @param data Data object used for evaluation.
@@ -2287,54 +2630,122 @@ impl Individual {
         let mut contribs: Vec<f64> = Vec::with_capacity(feats.len());
         let mut cums: Vec<f64> = Vec::with_capacity(feats.len());
 
-        let mut cum_score = 0.0_f64;
+        // Handle RATIO_LANG separately as it requires accumulation first
+        if self.intern.language == RATIO_LANG {
+            let mut pos_sum = 0.0_f64;
+            let mut neg_sum = 0.0_f64;
 
-        for (idx, coef) in feats {
-            let j = *idx;
-            let coef_f = *coef as f64;
+            // First pass: accumulate numerator and denominator
+            for (idx, coef) in feats.clone() {
+                let j = *idx;
+                let x_ij = data.intern.X.get(&(sample_idx_0based, j)).copied().unwrap_or(0.0);
 
-            let x_ij = data
-                .intern
-                .X
-                .get(&(sample_idx_0based, j))
-                .copied()
-                .unwrap_or(0.0);
-
-            // Apply transformation logic
-            let transformed = match self.intern.data_type {
-                RAW_TYPE => x_ij,
-                PREVALENCE_TYPE => {
-                    if x_ij >= self.intern.epsilon { 1.0 } else { 0.0 }
-                }
-                LOG_TYPE => {
-                    if x_ij > 0.0 {
-                        (x_ij + self.intern.epsilon).ln()
-                    } else {
-                        0.0
+                let transformed = match self.intern.data_type {
+                    RAW_TYPE => x_ij,
+                    PREVALENCE_TYPE => {
+                        if x_ij > self.intern.epsilon { 1.0 } else { 0.0 }
                     }
+                    LOG_TYPE => {
+                        if x_ij > 0.0 {
+                            (x_ij / self.intern.epsilon).ln() * coef.abs() as f64
+                        } else {
+                            0.0
+                        }
+                    }
+                    _ => x_ij,
+                };
+
+                if *coef > 0 {
+                    pos_sum += transformed;
+                } else {
+                    neg_sum += transformed;
                 }
-                _ => x_ij,
-            };
+            }
 
-            let contrib = match self.intern.language {
-                RATIO_LANG => coef_f * transformed,
-                _ => coef_f * transformed,
-            };
+            let final_score = pos_sum / (neg_sum + self.intern.epsilon);
 
-            cum_score += contrib;
+            // Second pass: compute contributions
+            for (idx, coef) in feats {
+                let j = *idx;
+                let coef_f = *coef as f64;
+                let x_ij = data.intern.X.get(&(sample_idx_0based, j)).copied().unwrap_or(0.0);
 
-            let fname = if j < data.intern.features.len() {
-                data.intern.features[j].clone()
-            } else {
-                format!("Feature_{}", j)
-            };
+                let transformed = match self.intern.data_type {
+                    RAW_TYPE => x_ij,
+                    PREVALENCE_TYPE => {
+                        if x_ij > self.intern.epsilon { 1.0 } else { 0.0 }
+                    }
+                    LOG_TYPE => {
+                        if x_ij > 0.0 {
+                            (x_ij / self.intern.epsilon).ln() * coef.abs() as f64
+                        } else {
+                            0.0
+                        }
+                    }
+                    _ => x_ij,
+                };
 
-            names.push(fname);
-            feat_idx.push((j + 1) as i32);  
-            values.push(x_ij);
-            coefs.push(coef_f);
-            contribs.push(contrib);
-            cums.push(cum_score);
+                // Contribution to ratio: derivative of ratio with respect to this feature
+                let contrib = if coef_f > 0.0 {
+                    transformed / (neg_sum + self.intern.epsilon)
+                } else {
+                    -(pos_sum * transformed) / ((neg_sum + self.intern.epsilon).powi(2))
+                };
+
+                let fname = if j < data.intern.features.len() {
+                    data.intern.features[j].clone()
+                } else {
+                    format!("Feature_{}", j)
+                };
+
+                names.push(fname);
+                feat_idx.push((j + 1) as i32);
+                values.push(x_ij);
+                coefs.push(coef_f);
+                contribs.push(contrib);
+                cums.push(final_score); // For RATIO, all features contribute to the same final score
+            }
+
+        } else {
+            // Standard linear combination (BINARY_LANG, TERNARY_LANG, POW2_LANG, etc.)
+            let mut cum_score = 0.0_f64;
+
+            for (idx, coef) in feats {
+                let j = *idx;
+                let coef_f = *coef as f64;
+                let x_ij = data.intern.X.get(&(sample_idx_0based, j)).copied().unwrap_or(0.0);
+
+                let transformed = match self.intern.data_type {
+                    RAW_TYPE => x_ij,
+                    PREVALENCE_TYPE => {
+                        if x_ij > self.intern.epsilon { 1.0 } else { 0.0 }
+                    }
+                    LOG_TYPE => {
+                        if x_ij > 0.0 {
+                            (x_ij / self.intern.epsilon).ln()
+                        } else {
+                            0.0
+                        }
+                    }
+                    _ => x_ij,
+                };
+
+                let contrib = coef_f * transformed;
+                cum_score += contrib;
+
+                let fname = if j < data.intern.features.len() {
+                    data.intern.features[j].clone()
+                } else {
+                    format!("Feature_{}", j)
+                };
+
+                names.push(fname);
+                feat_idx.push((j + 1) as i32);
+                values.push(x_ij);
+                coefs.push(coef_f);
+                contribs.push(contrib);
+                cums.push(cum_score);
+            }
         }
 
         let df = data_frame!(
@@ -2364,42 +2775,50 @@ pub struct Experiment {
 
 /// @title Experiment
 /// @name Experiment
-/// @description Complete experiment container for Gpredomics runs
+/// @description Complete experimental run container for Gpredomics algorithms.
+/// 
 /// @details 
-/// Experiment encapsulates an entire Gpredomics run including:
-/// - Training and optional test data
-/// - Algorithm parameters
-/// - Evolution history (populations across generations)
-/// - Cross-validation fold information (if applicable)
-/// - Final best population and optional Jury
-/// - Execution metadata (timestamp, version, execution time)
+/// Experiment encapsulates a complete Gpredomics algorithm run with:
+/// \\itemize{
+///   \\item \\strong{Data}: Training and optional test datasets
+///   \\item \\strong{Parameters}: Complete algorithm configuration
+///   \\item \\strong{Evolution history}: Populations across all generations (if keep_trace=TRUE)
+///   \\item \\strong{Cross-validation}: Fold definitions and per-fold populations (if CV enabled)
+///   \\item \\strong{Final results}: Best population and optional Jury ensemble
+///   \\item \\strong{Metadata}: Timestamp, version, execution time
+/// }
+/// 
+/// Experiments can be saved/loaded for reproducibility and post-hoc analysis.
+/// Methods provide access to individuals, populations, and performance metrics
+/// at different granularities (generation, fold, overall).
 /// 
 /// @section Methods:
-/// \describe{
-///   \item{\code{individual(generation, order)}}{Retrieves a full description of an individual from a specified generation and order. Parameters: generation (i32 generation index), order (i32 order within generation). Returns Individual object.}
-///   \item{\code{test_data()}}{Retrieves the test data associated with the experiment. Returns Data object representing the test data.}
-///   \item{\code{train_data()}}{Retrieves the training data associated with the experiment. Returns Data object representing the training data.}
-///   \item{\code{get_data_robj(train)}}{Retrieves the data associated with the experiment as an R object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns R object representing the data.}
-///   \item{\code{get_data(train)}}{Retrieves the data associated with the experiment as a Data object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns Data object.}
-///   \item{\code{get_generation(generation)}}{Retrieves descriptions of all individuals from a specified generation. Parameter: generation (i32 generation index). Returns R list object encapsulating features and metrics of all individuals in the generation.}
-///   \item{\code{get_fold_data(fold, train)}}{Get fold data for cross-validation. Parameters: fold (fold index 0-based), train (logical: if TRUE returns training data, if FALSE returns validation data). Returns Data object for the specified fold.}
-///   \item{\code{get_fold_generation(fold, generation, train)}}{Get population from a specific CV fold and generation. Parameters: fold (fold index 0-based), generation (generation index 0-based), train (logical: if TRUE uses training data, if FALSE uses validation data, default TRUE). Returns Population object.}
-///   \item{\code{get_n_folds()}}{Get the number of cross-validation folds in the experiment. Returns number of CV folds as integer.}
-///   \item{\code{get_best_population()}}{Get the final/best population from the experiment. Returns Population object containing the best individuals.}
-///   \item{\code{compute_cv_importance(n_perm, aggregation, scaled, seed, compact)}}{Compute cross-validated feature importance (MDA-like) aggregated across CV folds. Parameters: n_perm (number of permutations, default 1000), aggregation ("mean" or "median", default "mean"), scaled (whether to scale, default TRUE), seed (random seed, default 4815162342), compact (return vector if TRUE or data.frame if FALSE, default FALSE). Returns either data.frame or named vector.}
-///   \item{\code{compute_cv_importance_matrix(n_perm, used_only, seed, aggregation, scaled)}}{Compute per-fold CV population-level importance matrix. Parameters: n_perm (number of permutations, default 1000), used_only (restrict to FBM features, default TRUE), seed (base seed for RNG, default 4815162342), aggregation (population aggregation method: "mean" or "median", default "mean"), scaled (scale importances, default TRUE). Returns numeric matrix: n_features x n_folds.}
-///   \item{\code{generation_number()}}{Get the number of generations in the population. Returns number of generations.}
-///   \item{\code{population_size(generation)}}{Get the size (number of individuals) of a certain generation in a Population. Parameter: generation (i32 generation index). Returns integer size.}
-///   \item{\code{load_data(x_path, y_path)}}{Load an external dataset to evaluate the model. Parameters: x_path (path to X data file), y_path (path to y data file). Returns Data object containing the loaded data.}
-///   \item{\code{get_param()}}{Get the param object associated with the experiment. Returns Param object containing the experiment parameters.}
-///   \item{\code{get_jury()}}{Get the jury object associated with the experiment. Returns Jury object containing the jury details.}
-///   \item{\code{load(path)}}{Load a serialized experiment. Parameter: path (path to the experiment file). Returns loaded Experiment object.}
-///   \item{\code{save(path)}}{Save an experiment. Parameter: path (path to save the experiment).}
-///   \item{\code{get_population(generation)}}{Extract population from experiment, optionally specifying generation number. Parameter: generation (optional generation number, 0-based; if None, returns final population). Returns Population object for the specified generation or final population.}
-///   \item{\code{address()}}{Get memory address of this Experiment object. Returns string representing the memory address.}
-///   \item{\code{print()}}{Get print of this Experiment. Returns string representing the Experiment summary.}
-///   \item{\code{get_history(data, scope)}}{Get training history with specified scope. Parameters: data (Data object to evaluate on), scope ("best", "fbm", "top5", or "all", default "best"). Returns data.frame with metrics per generation (and per fold if CV).}
+/// \\describe{
+///   \\item{\\code{individual(generation, order)}}{Retrieve specific individual from generation.}
+///   \\item{\\code{test_data()}}{Get test data if available.}
+///   \\item{\\code{train_data()}}{Get training data.}
+///   \\item{\\code{get_data_robj(train)}}{Get data as R object.}
+///   \\item{\\code{get_data(train)}}{Get data as Data object.}
+///   \\item{\\code{get_generation(generation)}}{Get all individuals from a generation.}
+///   \\item{\\code{get_fold_data(fold, train)}}{Get CV fold data.}
+///   \\item{\\code{get_fold_generation(fold, generation, train)}}{Get population from CV fold.}
+///   \\item{\\code{get_n_folds()}}{Get number of CV folds.}
+///   \\item{\\code{get_best_population()}}{Get final/best population.}
+///   \\item{\\code{compute_cv_importance(n_perm, aggregation, scaled, seed, compact)}}{Compute aggregated CV feature importance.}
+///   \\item{\\code{compute_cv_importance_matrix(n_perm, used_only, seed, aggregation, scaled)}}{Compute per-fold importance matrix.}
+///   \\item{\\code{generation_number()}}{Get number of generations.}
+///   \\item{\\code{population_size(generation)}}{Get population size for a generation.}
+///   \\item{\\code{load_data(x_path, y_path, features_in_columns)}}{Load external dataset for evaluation.}
+///   \\item{\\code{get_param()}}{Get parameter object.}
+///   \\item{\\code{get_jury()}}{Get Jury ensemble if computed.}
+///   \\item{\\code{load(path)}}{Load serialized experiment from disk.}
+///   \\item{\\code{save(path)}}{Save experiment to disk.}
+///   \\item{\\code{get_population(generation)}}{Extract population at specified generation.}
+///   \\item{\\code{address()}}{Get memory address.}
+///   \\item{\\code{print()}}{Get formatted experiment summary.}
+///   \\item{\\code{get_history(data, scope)}}{Get training history with metrics per generation.}
 /// }
+/// 
 /// @export
 #[extendr]
 impl Experiment {
@@ -2598,7 +3017,7 @@ impl Experiment {
     /// @name Experiment$compute_cv_importance
     /// @description
     /// Compute cross-validated feature importance (MDA-like) aggregated across CV folds.  
-    /// This uses the native CV::compute_cv_oob_feature_importance logic on the original
+    /// This uses the native CV::compute_cv_mda_feature_importance logic on the original
     /// training data and CV folds stored in the Experiment.
     ///
     /// @param n_perm Number of permutations (default: 1000)
@@ -2643,7 +3062,7 @@ impl Experiment {
 
         // 3) Native CV importance (agrégé across folds)
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut ic: ImportanceCollection = cv.compute_cv_oob_feature_importance(
+        let mut ic: ImportanceCollection = cv.compute_cv_mda_feature_importance(
             &self.param_arc,
             permutations,
             &mut rng,
@@ -2845,7 +3264,7 @@ impl Experiment {
 
                     let mut rng = ChaCha8Rng::seed_from_u64(base_seed);
                     let mut ic: ImportanceCollection = last_pop
-                        .compute_pop_oob_feature_importance(
+                        .compute_pop_mda_feature_importance(
                             &fold_data,
                             permutations,
                             &mut rng,
@@ -3078,7 +3497,7 @@ impl Experiment {
 
     /// @title Extract population from experiment
     /// @description Extract population from experiment, optionally specifying generation number
-    /// @param generation Optional generation number (0-based). If None, returns final population
+    /// @param generation Optional generation number (1-based, R-style). If None, returns final population
     /// @return Population object for the specified generation or final population
     pub fn get_population(&self, generation: Option<i32>) -> Result<Population> {
         match generation {
@@ -3094,11 +3513,19 @@ impl Experiment {
                 }
             },
             Some(gen_idx) => {
-                let gen_idx = gen_idx as usize;
+                // Validate 1-based index
+                if gen_idx <= 0 {
+                    return Err(r_error(&format!("Generation index must be >= 1 (got {})", gen_idx)));
+                }
+                
+                let gen_idx_zero_based = (gen_idx - 1) as usize;
 
                 if !self.intern.collections.is_empty() {
                     if let Some(first_collection) = self.intern.collections.get(0) {
-                        if let Some(population) = first_collection.get(gen_idx) {
+                        if gen_idx_zero_based >= first_collection.len() {
+                            return Err(r_error(&format!("Generation index {} out of bounds for this experiment ({} available generations)", gen_idx, first_collection.len())));
+                        }
+                        if let Some(population) = first_collection.get(gen_idx_zero_based) {
                             return Ok(Population {
                                 intern: population.clone(),
                                 data: Arc::clone(&self.train_data_arc),
@@ -3322,34 +3749,34 @@ impl Experiment {
     
         let df = if n_folds > 1 {
              data_frame!(
-                Fold = folds,
-                Generation = generations,
-                AUC = aucs,
-                Fit = fits,
-                Sensitivity = sensitivities,
-                Specificity = specificities,
-                Threshold = thresholds,
-                Rejection_Rate = rejection_rates,
-                MCC = mccs,
-                F1 = f1s,
-                NPV = npvs,
-                PPV = ppvs,
-                GMean = gmeans_vec,
+                fold = folds,
+                generation = generations,
+                auc = aucs,
+                fit = fits,
+                sensitivity = sensitivities,
+                specificity = specificities,
+                threshold = thresholds,
+                rejection_rate = rejection_rates,
+                mcc = mccs,
+                f1 = f1s,
+                npv = npvs,
+                ppv = ppvs,
+                gmean = gmeans_vec,
                 k = k)
             } else {
                 data_frame!(
-                    Generation = generations,
-                    AUC = aucs,
-                    Fit = fits,
-                    Sensitivity = sensitivities,
-                    Specificity = specificities,
-                    Threshold = thresholds,
-                    Rejection_Rate = rejection_rates,
-                    MCC = mccs,
-                    F1 = f1s,
-                    NPV = npvs,
-                    PPV = ppvs,
-                    GMean = gmeans_vec,
+                    generation = generations,
+                    auc = aucs,
+                    fit = fits,
+                    sensitivity = sensitivities,
+                    specificity = specificities,
+                    threshold = thresholds,
+                    rejection_rate = rejection_rates,
+                    mcc = mccs,
+                    f1 = f1s,
+                    npv = npvs,
+                    ppv = ppvs,
+                    gmean = gmeans_vec,
                     k = k)
             };
         
@@ -3357,9 +3784,9 @@ impl Experiment {
     }
 }
 
-///////////////////////////////////////////////////////////////
-/// Population object
-///////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+// Population object
+//-----------------------------------------------------------------------------
 
 #[extendr]
 #[derive(Debug, Clone)]
@@ -3370,15 +3797,17 @@ pub struct Population {
 }
 
 impl Population {
-    /// Internal constructor - creates Population with shared data and param references.
-    /// 
-    /// This method is used internally to wrap a GPopulation with its associated
-    /// data and parameters for use in the R interface.
+    /// Creates a new Population wrapper with shared references.
     /// 
     /// # Arguments
+    ///
     /// * `intern` - The internal GPopulation object
     /// * `data` - Shared reference to the data
     /// * `param` - Shared reference to algorithm parameters
+    ///
+    /// # Returns
+    ///
+    /// A new Population object wrapping the provided components
     pub(crate) fn new(intern: GPopulation, data: Arc<GData>, param: Arc<GParam> ) -> Self {
         Self { intern, data, param }
     }
@@ -3386,40 +3815,52 @@ impl Population {
 
 /// @title Population
 /// @name Population
-/// @description gpredomics Population object
+/// @description A collection of Individual models from Gpredomics.
+/// 
 /// @details 
-/// Population represents a collection of Individuals.
-/// It provides methods to filter, analyze, and manipulate sets of individuals, as well as compute
-/// aggregate predictions and feature importances across the population.
+/// Population represents a collection of Individuals (models).
+/// It provides comprehensive methods to:
+/// \itemize{
+///   \item Filter populations by performance metrics (AUC, fit, sensitivity, specificity)
+///   \item Filter by structural properties (number of features, diversity)
+///   \item Select best models (FBM - Family of Best Models)
+///   \item Compute aggregate predictions across models
+///   \item Calculate feature importance at population level
+///   \item Prune features based on importance
+///   \item Combine and manipulate model collections
+/// }
 /// 
 /// @section Methods:
 /// \describe{
-///   \item{\code{get()}}{Get the population associated with the experiment. Returns R object representing the Population.}
-///   \item{\code{display_feature_prevalence(data, nb_features)}}{Display the prevalence of features in the population. Parameters: data (Data object), nb_features (number of top features to display).}
-///   \item{\code{predict_score_matrix(data)}}{Predict all individuals of the population on data and return a dataframe (Rows = samples, Columns = individuals/experts). Parameter: data (Data object to predict on). Returns dataframe with predicted scores.}
-///   \item{\code{predict_class_matrix(data)}}{Predict classes for all individuals of the population on data and return a dataframe (Rows = samples, Columns = individuals/experts, Values = predicted classes 0 or 1). Parameter: data (Data object to predict on). Returns dataframe with predicted classes.}
-///   \item{\code{filter_by_auc(min_auc)}}{Filter population by AUC threshold. Parameter: min_auc (minimum AUC threshold). Returns filtered Population object.}
-///   \item{\code{filter_by_fit(min_fit)}}{Filter population by fitness threshold. Parameter: min_fit (minimum fit threshold). Returns filtered Population object.}
-///   \item{\code{filter_by_diversity(min_diversity_pct, by_niche)}}{Filter population by diversity using Jaccard dissimilarity. Parameters: min_diversity_pct (minimum diversity percentage 0-100), by_niche (whether to compute diversity within niches). Returns filtered Population object.}
-///   \item{\code{filter_by_sensitivity(min_sensitivity)}}{Filter population by sensitivity threshold. Parameter: min_sensitivity (minimum sensitivity threshold). Returns filtered Population object.}
-///   \item{\code{filter_by_specificity(min_specificity)}}{Filter population by specificity threshold. Parameter: min_specificity (minimum specificity threshold). Returns filtered Population object.}
-///   \item{\code{filter_by_mask(mask)}}{Filter population using a logical vector (1/0). Parameter: mask (integer vector 1/0 indicating which individuals to keep). Returns filtered Population object.}
-///   \item{\code{filter_by_k(min_k, max_k)}}{Filter population by number of features (k). Parameters: min_k (minimum number of features), max_k (maximum number of features). Returns filtered Population object.}
-///   \item{\code{get_fbm(alpha)}}{Get Family of Best Models (FBM) using confidence interval selection. This method selects models with performance statistically equivalent to the best model. Parameters: alpha (confidence level, default 0.05 for 95% confidence). If FBM selection fails, alpha% to keep). Returns Population object containing the FBM.}
-///   \item{\code{get_first_pct(pct)}}{Get first percentage of individuals sorted by fitness. Parameter: pct (percentage 0-100). Returns Population object containing the selected individuals.
-///   \item{\code{fit(data, param)}}{Compute fitness metrics for all individuals on new data or parameters and sort it. Parameters: data (new Data object to fit on), param (Param object containing fit function and penalties).}
-///   \item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Prune all individuals by importance threshold. Parameters: threshold (importance threshold), n_perm (number of permutations, default 100), seed (base seed for RNG, default 4815162342), min_k (minimum features to keep, default 1). Returns new Population with pruned individuals.}
-///   \item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Prune all individuals by importance quantile. Parameters: quantile (quantile value 0-1), eps (epsilon value, default 0.0), n_perm (number of permutations, default 100), seed (base seed for RNG, default 4815162342), min_k (minimum features to keep, default 1). Returns new Population with pruned individuals.}
-///   \item{\code{address()}}{Get memory address of this Population object. Returns string representing the memory address.}
-///   \item{\code{get_individual(index)}}{Get an Individual of a population by index. Parameter: index (index of the individual to retrieve). Returns Individual object at the specified index.}
-///   \item{\code{print_as_gpredomics()}}{Print the Population in gpredomics style to R console.}
-///   \item{\code{print()}}{Get comprehensive print information about the population. Returns string representing the Population summary.}
-///   \item{\code{from_individuals(individuals)}}{Create a Population from a vector or list of R Individual objects. Parameter: individuals (R vector or list of Individual objects, must have at least one). Returns Population object created from the individuals.}
-///   \item{\code{extend(other)}}{Extend this population with another population. Parameter: other (another Population object to add).}
-///   \item{\code{add_individuals(individuals)}}{Add individuals from a vector or list to this population. Parameter: individuals (R vector or list of Individual objects).}
-///   \item{\code{compute_importance(data, n_perm, aggregation, scaled, seed, compact)}}{Compute full Population-level MDA importances for this Population on given Data. Parameters: data (Data object to compute importances on), n_perm (number of permutations, default 1000), aggregation (aggregation method: "mean" (default) or "median"), scaled (whether to scale importances, default TRUE), seed (random seed for reproducibility, default 4815162342), compact (whether to return a compact vector (TRUE) or full data.frame (FALSE, default)). Returns DataFrame with columns: feature, importance, dispersion, prevalence.}
-///   \item{\code{compute_importance_matrix(data, n_perm, used_only, seed)}}{Compute full Population-level MDA importance matrix for this Population on given Data. Parameters: data (Data object to compute importances on), n_perm (number of permutations, default 1000), used_only (whether to compute importances only for features used in the population, default TRUE), seed (random seed for reproducibility, default 4815162342). Returns Matrix (data.frame) with rows = features, columns = individuals.}
+///   \item{\code{get()}}{Get the population associated with the experiment.}
+///   \item{\code{display_feature_prevalence(data, nb_features)}}{Display the prevalence of features in the population.}
+///   \item{\code{predict_score_matrix(data)}}{Predict all individuals and return score matrix (samples x individuals).}
+///   \item{\code{predict_class_matrix(data)}}{Predict all individuals and return class matrix (samples x individuals).}
+///   \item{\code{filter_by_auc(min_auc)}}{Filter population by minimum AUC threshold.}
+///   \item{\code{filter_by_fit(min_fit)}}{Filter population by minimum fitness threshold.}
+///   \item{\code{filter_by_diversity(min_diversity_pct, by_niche)}}{Filter population by Jaccard dissimilarity.}
+///   \item{\code{filter_by_sensitivity(min_sensitivity)}}{Filter population by minimum sensitivity.}
+///   \item{\code{filter_by_specificity(min_specificity)}}{Filter population by minimum specificity.}
+///   \item{\code{filter_by_mask(mask)}}{Filter using logical vector (1/0).}
+///   \item{\code{filter_by_k(min_k, max_k)}}{Filter by number of features (k).}
+///   \item{\code{get_fbm(alpha)}}{Get Family of Best Models using statistical selection.}
+///   \item{\code{get_first_pct(pct)}}{Get first percentage of individuals sorted by fitness.}
+///   \item{\code{fit(data, param)}}{Recompute fitness metrics for all individuals.}
+///   \item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Prune all individuals by importance threshold.}
+///   \item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Prune all individuals by importance quantile.}
+///   \item{\code{address()}}{Get memory address of this Population object.}
+///   \item{\code{get_individual(index)}}{Get an Individual by index.}
+///   \item{\code{print_as_gpredomics()}}{Print population in gpredomics style.}
+///   \item{\code{print()}}{Get comprehensive population summary.}
+///   \item{\code{from_individuals(individuals)}}{Create Population from vector/list of Individuals.}
+///   \item{\code{extend(other)}}{Extend population with another population.}
+///   \item{\code{add_individuals(individuals)}}{Add individuals from vector/list.}
+///   \item{\code{compute_importance(data, n_perm, aggregation, scaled, seed, compact)}}{Compute population-level MDA importance.}
+///   \item{\code{compute_importance_matrix(data, n_perm, used_only, seed)}}{Compute importance matrix (features x individuals).}
+///   \item{\code{get_size()}}{Get number of individuals in population.}
+///   \item{\code{get_first_n(n)}}{Get first N individuals.}
 /// }
+/// 
 /// @export
 #[extendr]
 impl Population {
@@ -4094,7 +4535,7 @@ impl Population {
         let pool = ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
 
         let mut ic: ImportanceCollection = pool.install(|| {
-            self.intern.compute_pop_oob_feature_importance(
+            self.intern.compute_pop_mda_feature_importance(
                 &data.intern,
                 permutations,
                 &mut rng,
@@ -4212,7 +4653,7 @@ impl Population {
 
                 let mut col = vec![0.0_f64; n_feat];
 
-                let ic = ind.compute_oob_feature_importance(
+                let ic = ind.compute_mda_feature_importance(
                     &data.intern,
                     permutations,
                     &feats_for_ind,
@@ -4244,11 +4685,35 @@ impl Population {
         Ok(mat)
     }
 
+    /// Get size of population
+    /// @return Number of individuals in the population
+    /// @export
+    pub fn get_size(&self) -> i32 {
+        self.intern.individuals.len() as i32
+    }
+
+    /// @title Get first N individuals
+    /// @name Population$get_first_n
+    /// @description Get the first N individuals from the population
+    /// @param n Number of individuals to retrieve
+    /// @return Population object containing the first N individuals
+    /// @export
+    pub fn get_first_n(&self, n: i32) -> Population {
+        let n_usize = n as usize;
+        let mut gpopulation = GPopulation::new();
+        
+        for i in 0..n_usize.min(self.intern.individuals.len()) {
+            gpopulation.individuals.push(self.intern.individuals[i].clone());
+        }
+        
+        Population::new(gpopulation, Arc::clone(&self.data), Arc::clone(&self.param))
+    }
+
 }
 
-///////////////////////////////////////////////////////////////
-/// Jury object
-///////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+// Jury object
+//-----------------------------------------------------------------------------
 
 #[extendr]
 #[derive(Debug, Clone)]
@@ -4260,27 +4725,39 @@ pub struct Jury {
 
 /// @title Jury
 /// @name Jury
-/// @description gpredomics Jury object
+/// @description Ensemble voting system for model aggregation.
+/// 
 /// @details 
-/// Jury represents an ensemble of expert models (a calibrated population) that make predictions
-/// through voting and weighting schemes. It implements various voting methods (majority, consensus)
-/// to aggregate predictions from multiple experts.
+/// Jury represents an ensemble of expert models that make predictions through
+/// weighted voting schemes. It provides:
+/// \\itemize{
+///   \\item \\strong{Expert selection}: Filters population by performance and diversity
+///   \\item \\strong{Voting methods}: Majority (≥ threshold) or Consensus (all agree)
+///   \\item \\strong{Weighting schemes}: Uniform or specialized (niche-based)
+///   \\item \\strong{Threshold calibration}: Optimizes decision threshold on ensemble
+///   \\item \\strong{Performance metrics}: AUC, accuracy, sensitivity, specificity, rejection rate
+/// }
+/// 
+/// The Jury can be constructed from filtered populations or created directly from
+/// parameter specifications. It automatically calibrates weights and thresholds
+/// during initialization.
 /// 
 /// @section Methods:
-/// \describe{
-///   \item{\code{new_from_param(population, param)}}{Constructs a Jury object from a population and parameters. Parameters: population (Population of experts to form the Jury), param (Parameters for the Jury). Returns Jury object.}
-///   \item{\code{from_population(population, threshold, window)}}{Create a Jury directly from a Population without applying any filters. Parameters: population (Population to use as experts), threshold (Voting threshold, default 0.5), window (Threshold window percentage, default 5.0). Returns Jury object.}
-///   \item{\code{get()}}{Returns an R object containing all Jury fields for R interface. Returns list with Jury fields.}
-///   \item{\code{get_metrics()}}{Get the base metrics already computed and stored in this Jury (AUC, accuracy, sensitivity, specificity, rejection_rate). No data required, no computation. Returns a list with base metrics only.}
-///   \item{\code{compute_metrics(data)}}{Compute all metrics (base + additional: MCC, NPV, PPV, F1-score, G-mean) on the provided Data object. Returns a list with all computed metrics.}
-///   \item{\code{predict(data)}}{Predict classes and scores on the provided Data object. Returns a list with two elements: class (predicted classes) and score (predicted scores).}
-///   \item{\code{fit(data)}}{Fit/calibrate the Jury on new data by recomputing weights, thresholds, and all metrics. Parameter: data (Data object used for calibration).}
-///   \item{\code{get_population()}}{Extract the population from the jury (experts). Returns Population object containing the experts.}
-///   \item{\code{print_self_report()}}{Display the Jury report with self-evaluation metrics to console.}
-///   \item{\code{print_report(test_data)}}{Display the Jury report with both training and test data evaluation. Parameter: test_data (Data object for test evaluation).}
-///   \item{\code{address()}}{Get memory address of this Jury object. Returns string representing the memory address.}
-///   \item{\code{print()}}{Get summary of this Jury. Returns string representing the Jury summary.}
+/// \\describe{
+///   \\item{\\code{new_from_param(population, param)}}{Create Jury from population using param settings.}
+///   \\item{\\code{from_population(population, threshold, window)}}{Create Jury directly from population.}
+///   \\item{\\code{get()}}{Get all Jury fields as R list.}
+///   \\item{\\code{get_metrics()}}{Get base metrics (AUC, accuracy, sensitivity, specificity, rejection_rate).}
+///   \\item{\\code{compute_metrics(data)}}{Compute all metrics including additional ones on new data.}
+///   \\item{\\code{predict(data)}}{Predict classes and scores via ensemble voting.}
+///   \\item{\\code{fit(data)}}{Recalibrate Jury on new data.}
+///   \\item{\\code{get_population()}}{Extract expert population.}
+///   \\item{\\code{print_self_report()}}{Display Jury performance report.}
+///   \\item{\\code{print_report(test_data)}}{Display Jury report with train/test evaluation.}
+///   \\item{\\code{address()}}{Get memory address.}
+///   \\item{\\code{print()}}{Get formatted Jury summary.}
 /// }
+/// 
 /// @export
 #[extendr]
 impl Jury {
@@ -4570,10 +5047,17 @@ impl Jury {
     }
 }
 
-/// Custom log format function for flexi_logger.
-/// 
 /// Formats log entries with timestamp, level, and message.
-/// Format: "YYYY-MM-DD HH:MM:SS [LEVEL] message"
+/// 
+/// # Arguments
+///
+/// * `w` - Writer to output formatted log entry
+/// * `now` - Deferred timestamp for the log entry
+/// * `record` - Log record containing level and message
+///
+/// # Returns
+///
+/// Result indicating success or IO error
 fn custom_format(
     w: &mut dyn std::io::Write,
     now: &mut flexi_logger::DeferredNow,
@@ -4588,14 +5072,15 @@ fn custom_format(
     )
 }
 
-/// Resolve the number of threads to use from R options.
-/// 
-/// Checks the R option 'gpredomics.threads.number' and returns the value if valid.
-/// Accepts integer, numeric, or string representations of positive integers.
-/// 
+/// Resolves the number of threads to use from R options.
+///
+/// # Arguments
+///
+/// None (reads from R global options)
+///
 /// # Returns
-/// - `Some(usize)` if a valid thread count is found in R options
-/// - `None` if no option is set or the value is invalid
+///
+/// Some(usize) if valid thread count found, None otherwise
 fn resolve_threads() -> Option<usize> {
     if let Ok(robj) = R!("getOption('gpredomics.threads.number', NULL)") {
         if let Some(i) = robj.as_integer() { if i > 0 { return Some(i as usize); } }
@@ -4607,9 +5092,9 @@ fn resolve_threads() -> Option<usize> {
 
 
 
-///////////////////////////////////////////////////////////////
-/// Glogger object
-///////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+// Glogger object
+//-----------------------------------------------------------------------------
 
 
 // === Global logger handle & helpers (idempotent init) ===
@@ -4617,15 +5102,14 @@ fn resolve_threads() -> Option<usize> {
 /// Global logger handle using OnceCell for thread-safe initialization.
 static LOGGER_HANDLE: OnceCell<LoggerHandle> = OnceCell::new();
 
-/// Initialize the global logger or return existing handle.
-/// 
-/// This function ensures the logger is initialized only once, even if called
-/// from multiple threads. Subsequent calls return a clone of the existing handle.
-/// 
+/// Initializes the global logger or returns existing handle.
+///
 /// # Arguments
+///
 /// * `builder` - Closure that constructs the Logger
-/// 
+///
 /// # Returns
+///
 /// A LoggerHandle that can be used to control the logger
 fn init_or_get_with<F>(builder: F) -> LoggerHandle
 where
@@ -4642,11 +5126,15 @@ where
     handle
 }
 
-/// Get the current logger handle if it has been initialized.
-/// 
+/// Gets the current logger handle if initialized.
+///
+/// # Arguments
+///
+/// None
+///
 /// # Returns
-/// - `Some(LoggerHandle)` if logger was previously initialized
-/// - `None` if logger has not been initialized yet
+///
+/// Some(LoggerHandle) if logger exists, None otherwise
 fn current_handle() -> Option<LoggerHandle> {
     LOGGER_HANDLE.get().cloned()
 }
@@ -4658,19 +5146,37 @@ pub struct GLogger {
 
 /// @title GLogger
 /// @name GLogger
-/// @description An object to handle Logger
+/// @description Configurable logging system for Gpredomics.
+/// 
 /// @details 
-/// GLogger provides a configurable logging interface for the gpredomics package.
-/// It supports different logging levels (info, debug, error, etc.) and can output
-/// to screen or files with customizable formatting.
+/// GLogger provides a flexible logging interface with:
+/// \\itemize{
+///   \\item \\strong{Log levels}: info, debug, warn, error, trace
+///   \\item \\strong{Output modes}: Console (stderr) or file-based logging
+///   \\item \\strong{Custom formatting}: Timestamp, level, and message
+///   \\item \\strong{Dynamic control}: Change log level at runtime
+/// }
+/// 
+/// Loggers can be created from Param objects or standalone with specific levels.
+/// File-based logging supports automatic timestamping and log rotation.
 /// 
 /// @section Methods:
-/// \describe{
-///   \item{\code{new()}}{Create a new screen logger with default 'info' level. Returns GLogger object.}
-///   \item{\code{level(level)}}{Create a new screen logger with specified logging level. Parameter: level (logging level string, e.g., "info", "debug", "error"). Returns GLogger object.}
-///   \item{\code{get(param)}}{Create a new logger from a Param object containing logging configuration. Parameter: param (Param object containing logging configuration). Returns GLogger object.}
-///   \item{\code{set_level(level)}}{Change logging level. Parameter: level (new logging level string, e.g., "info", "debug", "error").}
+/// \\describe{
+///   \\item{\\code{new()}}{Create screen logger with default 'info' level.}
+///   \\item{\\code{level(level)}}{Create screen logger with specified level.}
+///   \\item{\\code{get(param)}}{Create logger from Param configuration.}
+///   \\item{\\code{set_level(level)}}{Change current logging level.}
 /// }
+/// 
+/// @examples
+/// \\dontrun{
+/// # Create logger with debug level
+/// logger <- GLogger$level("debug")
+/// 
+/// # Change level at runtime
+/// logger$set_level("info")
+/// }
+/// 
 /// @export
 #[extendr]
 impl GLogger {
@@ -4768,16 +5274,38 @@ impl GLogger {
 
 }
 
+//-----------------------------------------------------------------------------
+// Main functions
+//-----------------------------------------------------------------------------
+
+/// Runs Gpredomics algorithm from parameter specification.
+///
+/// # Arguments
+///
+/// * `param` - Param object containing complete algorithm configuration
+/// * `running_flag` - RunningFlag for execution control and monitoring
+///
+/// # Returns
+///
+/// An Experiment object containing all results and metadata
 /// @title Run genetic algorithm
 /// @name fit
-/// @description Run the Gpredomics genetic algorithm to produce an Experiment from parameters
+/// @description Run the Gpredomics genetic algorithm to produce an Experiment from parameters.
+/// 
 /// @details
 /// This is the main entry point for running Gpredomics algorithms (GA, BEAM, MCMC).
-/// The function loads data specified in the param object, runs the algorithm, and
-/// returns a complete Experiment object with results. If param$voting$vote is TRUE,
-/// a Jury ensemble is automatically computed.
+/// The function:
+/// \\enumerate{
+///   \\item Loads data from paths specified in param object (param$data$X, param$data$y)
+///   \\item Applies feature selection if configured
+///   \\item Runs the specified algorithm (GA/BEAM/MCMC)
+///   \\item Performs cross-validation if param$cv = TRUE
+///   \\item Computes Jury ensemble if param$voting$vote = TRUE
+/// }
 /// 
-/// @param param Param object containing experiment configuration (data paths, algorithm, CV settings)
+/// Thread count is resolved from R option 'gpredomics.threads.number' or param$general$thread_number.
+/// 
+/// @param param Param object containing experiment configuration
 /// @param running_flag RunningFlag object to control and monitor execution
 /// @return Experiment object containing populations, final results, and optional Jury
 /// @export
@@ -4807,16 +5335,37 @@ pub fn fit(param: &Param, running_flag: &RunningFlag) -> Experiment {
     exp
 }
 
+/// Runs Gpredomics algorithm on pre-loaded Data object.
+///
+/// # Arguments
+///
+/// * `data` - Data object containing features and labels
+/// * `param` - Param object containing algorithm configuration
+/// * `running_flag` - RunningFlag for execution control and monitoring
+///
+/// # Returns
+///
+/// An Experiment object containing all results and metadata
 /// @title Run genetic algorithm with Data object
 /// @name fit_on
-/// @description Run the Gpredomics algorithm using a pre-loaded Data object
+/// @description Run the Gpredomics algorithm using a pre-loaded Data object.
+/// 
 /// @details
 /// This function runs Gpredomics algorithms (GA, BEAM, MCMC) on data already loaded in R.
-/// Unlike fit(), this function uses an existing Data object instead of loading from file paths.
-/// If param$voting$vote is TRUE, a Jury ensemble is automatically computed.
+/// Unlike fit(), this bypasses file loading and uses an existing Data object directly.
+/// 
+/// Key differences from fit():
+/// \\itemize{
+///   \\item No data file loading (uses provided Data object)
+///   \\item Holdout ratio automatically set to 0.0 (no automatic test split)
+///   \\item Useful for programmatically generated or preprocessed data
+///   \\item Thread count resolved from R options or param settings
+/// }
+/// 
+/// If param$voting$vote = TRUE, a Jury ensemble is automatically computed.
 /// 
 /// @param data Data object containing the training data (features and labels)
-/// @param param Param object containing experiment configuration (algorithm, CV settings, etc.)
+/// @param param Param object containing experiment configuration
 /// @param running_flag RunningFlag object to control and monitor execution
 /// @return Experiment object containing populations, final results, and optional Jury
 /// @export
@@ -4824,28 +5373,43 @@ pub fn fit(param: &Param, running_flag: &RunningFlag) -> Experiment {
 pub fn fit_on(data: &Data, param: &Param, running_flag: &RunningFlag) -> Experiment {
     let mut p = param.intern.clone();
     let n_threads = resolve_threads();
-    p.general.thread_number = if n_threads.is_some() {
-        n_threads.unwrap()
+    let effective_threads = if let Some(n) = n_threads {
+        n
     } else {
         p.general.thread_number
     };
 
     p.data.holdout_ratio = 0.0; // No holdout when data is provided directly
 
-    let intern = run_on_data(data.intern.clone(), None, &p, running_flag.get_arc());
-    
-    let train_data_arc = Arc::new(intern.train_data.clone());
-    let param_arc = Arc::new(param.intern.clone());
-    let mut exp = Experiment {
-        intern,
-        train_data_arc,
-        param_arc,
-    };
-    
-    if param.intern.voting.vote {
-        exp.intern.compute_voting();
-    }
-    exp
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(effective_threads)
+        .build()
+        .unwrap_or_else(|e| {
+            eprintln!("Warning: Failed to create thread pool: {}. Using default.", e);
+            ThreadPoolBuilder::new().build().unwrap()
+        });
+
+    let final_experiment = pool.install(|| {
+        
+        let intern = run_on_data(data.intern.clone(), None, &p, running_flag.get_arc());
+        
+        let train_data_arc = Arc::new(intern.train_data.clone());
+        let param_arc = Arc::new(param.intern.clone());
+
+        let mut exp = Experiment {
+            intern,
+            train_data_arc,
+            param_arc,
+        };
+
+        if param.intern.voting.vote {
+            exp.intern.compute_voting();
+        }
+
+        exp 
+    });
+
+    final_experiment
 }
 
 // Macro to expose the struct and methods to R
@@ -4863,15 +5427,3 @@ extendr_module! {
     fn fit_on;
     fn as_gpredomics_data;
 }
-
-/*#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
-*/

@@ -9,7 +9,7 @@ printModelCollection(obj, indent = "\\t--- ", method = "short")
 \arguments{
 \item{obj}{A model collection object (list of populations).}
 
-\item{indent}{Indentation string for hierarchical formatting (default: "\t--- ").}
+\item{indent}{Indentation string for hierarchical formatting (default: "\\t--- ").}
 
 \item{method}{Print format: "short" (summary) or "long" (detailed, per population).}
 }

@@ -12,28 +12,38 @@ An object of class \code{environment} of length 12.
 Jury
 }
 \description{
-gpredomics Jury object
+Ensemble voting system for model aggregation.
 }
 \details{
-Jury represents an ensemble of expert models (a calibrated population) that make predictions
-through voting and weighting schemes. It implements various voting methods (majority, consensus)
-to aggregate predictions from multiple experts.
+Jury represents an ensemble of expert models that make predictions through
+weighted voting schemes. It provides:
+\\itemize{
+\\item \\strong{Expert selection}: Filters population by performance and diversity
+\\item \\strong{Voting methods}: Majority (≥ threshold) or Consensus (all agree)
+\\item \\strong{Weighting schemes}: Uniform or specialized (niche-based)
+\\item \\strong{Threshold calibration}: Optimizes decision threshold on ensemble
+\\item \\strong{Performance metrics}: AUC, accuracy, sensitivity, specificity, rejection rate
+}
+
+The Jury can be constructed from filtered populations or created directly from
+parameter specifications. It automatically calibrates weights and thresholds
+during initialization.
 }
 \section{Methods}{
 
-\describe{
-\item{\code{new_from_param(population, param)}}{Constructs a Jury object from a population and parameters. Parameters: population (Population of experts to form the Jury), param (Parameters for the Jury). Returns Jury object.}
-\item{\code{from_population(population, threshold, window)}}{Create a Jury directly from a Population without applying any filters. Parameters: population (Population to use as experts), threshold (Voting threshold, default 0.5), window (Threshold window percentage, default 5.0). Returns Jury object.}
-\item{\code{get()}}{Returns an R object containing all Jury fields for R interface. Returns list with Jury fields.}
-\item{\code{get_metrics()}}{Get the base metrics already computed and stored in this Jury (AUC, accuracy, sensitivity, specificity, rejection_rate). No data required, no computation. Returns a list with base metrics only.}
-\item{\code{compute_metrics(data)}}{Compute all metrics (base + additional: MCC, NPV, PPV, F1-score, G-mean) on the provided Data object. Returns a list with all computed metrics.}
-\item{\code{predict(data)}}{Predict classes and scores on the provided Data object. Returns a list with two elements: class (predicted classes) and score (predicted scores).}
-\item{\code{fit(data)}}{Fit/calibrate the Jury on new data by recomputing weights, thresholds, and all metrics. Parameter: data (Data object used for calibration).}
-\item{\code{get_population()}}{Extract the population from the jury (experts). Returns Population object containing the experts.}
-\item{\code{print_self_report()}}{Display the Jury report with self-evaluation metrics to console.}
-\item{\code{print_report(test_data)}}{Display the Jury report with both training and test data evaluation. Parameter: test_data (Data object for test evaluation).}
-\item{\code{address()}}{Get memory address of this Jury object. Returns string representing the memory address.}
-\item{\code{print()}}{Get summary of this Jury. Returns string representing the Jury summary.}
+\\describe{
+\\item{\\code{new_from_param(population, param)}}{Create Jury from population using param settings.}
+\\item{\\code{from_population(population, threshold, window)}}{Create Jury directly from population.}
+\\item{\\code{get()}}{Get all Jury fields as R list.}
+\\item{\\code{get_metrics()}}{Get base metrics (AUC, accuracy, sensitivity, specificity, rejection_rate).}
+\\item{\\code{compute_metrics(data)}}{Compute all metrics including additional ones on new data.}
+\\item{\\code{predict(data)}}{Predict classes and scores via ensemble voting.}
+\\item{\\code{fit(data)}}{Recalibrate Jury on new data.}
+\\item{\\code{get_population()}}{Extract expert population.}
+\\item{\\code{print_self_report()}}{Display Jury performance report.}
+\\item{\\code{print_report(test_data)}}{Display Jury report with train/test evaluation.}
+\\item{\\code{address()}}{Get memory address.}
+\\item{\\code{print()}}{Get formatted Jury summary.}
 }
 }
 

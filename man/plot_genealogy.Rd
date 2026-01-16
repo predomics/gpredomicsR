@@ -5,7 +5,9 @@
 \title{Plot a precomputed genealogy (Graph / Tree view)}
 \usage{
 plot_genealogy(
-  td,
+  ind,
+  exp,
+  max_depth = 3,
   layout = "sugiyama",
   node_size_base = 2,
   text_repel = TRUE,
@@ -13,7 +15,9 @@ plot_genealogy(
 )
 }
 \arguments{
-\item{td}{A list with $nodes and $edges as returned by get_genealogy().}
+\item{ind}{Individual to plot genealogy for.}
+
+\item{max_depth}{Maximum depth of the genealogy to display.}
 
 \item{layout}{Graph layout: "tree", "kk", "fr", "sugiyama".}
 
@@ -22,6 +26,8 @@ plot_genealogy(
 \item{text_repel}{Use ggrepel for labels.}
 
 \item{node_vars}{List or column names: list(color="auc", size="k", label="label").}
+
+\item{experiment}{Experiment object.}
 }
 \value{
 A ggplot/ggraph object.

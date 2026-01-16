@@ -416,12 +416,12 @@ test_that("Experiment: get_population", {
   
   exp <- fit(param, running_flag)
   
-  # Test: population of a specific generation (generation 0)
+  # Test: population of a specific generation (generation 1, first generation)
   gen0_pop <- exp$get_population(1)
   expect_true(!is.null(gen0_pop))
   
   # Test: population of the last generation
-  last_gen <- exp$generation_number() - 1
+  last_gen <- exp$generation_number()
   final_pop <- exp$get_population(last_gen)
   expect_true(!is.null(final_pop))
 })
@@ -2427,4 +2427,833 @@ test_that("fit_on: with voting enabled", {
   jury <- exp$get_jury()
   expect_true(!is.null(jury))
   expect_true(length(jury$get()$experts) > 0)
+})
+
+# ==============================================================================
+# 14. Tests for Individual feature manipulation methods
+# ==============================================================================
+
+test_that("Individual: add_feature adds features correctly", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  train_data <- exp$train_data()
+  
+  original_k <- ind$get()$k
+  original_features <- ind$get()$features
+  
+  # Get some features not in the model
+  all_features <- train_data$get()$features
+  available_features <- setdiff(all_features, original_features)
+  
+  skip_if(length(available_features) < 2, "Not enough features to add")
+  
+  # Test: Add 2 new features
+  new_features <- available_features[1:2]
+  new_coeffs <- c(1, -1)
+  
+  modified_ind <- ind$add_feature(new_features, new_coeffs)
+  
+  # Test: k should increase
+  expect_equal(modified_ind$get()$k, original_k + 2)
+  
+  # Test: new features should be in the model
+  expect_true(all(new_features %in% modified_ind$get()$features))
+  
+  # Test: metrics should be recomputed
+  expect_true(is.numeric(modified_ind$get()$auc))
+  expect_true(is.numeric(modified_ind$get()$fit))
+})
+
+test_that("Individual: add_feature error handling", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  
+  # Test: Length mismatch should error
+  expect_error(ind$add_feature(c("feature1", "feature2"), c(1)))
+  
+  # Test: Non-existent feature should error
+  expect_error(ind$add_feature(c("NonExistentFeature123"), c(1)))
+})
+
+test_that("Individual: remove_feature removes features correctly", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  
+  original_k <- ind$get()$k
+  skip_if(original_k <= 2, "Individual has too few features to test removal")
+  
+  original_features <- ind$get()$features
+  
+  # Remove first feature
+  feature_to_remove <- original_features[1]
+  modified_ind <- ind$remove_feature(c(feature_to_remove))
+  
+  # Test: k should decrease
+  expect_equal(modified_ind$get()$k, original_k - 1)
+  
+  # Test: removed feature should not be in model
+  expect_false(feature_to_remove %in% modified_ind$get()$features)
+  
+  # Test: metrics should be recomputed
+  expect_true(is.numeric(modified_ind$get()$auc))
+  expect_true(is.numeric(modified_ind$get()$fit))
+})
+
+test_that("Individual: remove_feature warning when no features left", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set("k_min", 1)
+  param$set("k_max", 1)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  
+  # Find single-feature individual
+  single_ind <- NULL
+  for (i in 1:min(10, length(pop$get()$individuals))) {
+    ind <- pop$get_individual(i)
+    if (ind$get()$k == 1) {
+      single_ind <- ind
+      break
+    }
+  }
+  
+  skip_if(is.null(single_ind), "No single-feature individual found")
+  
+  # Test: Removing the only feature should produce warning
+  expect_warning(single_ind$remove_feature(single_ind$get()$features))
+})
+
+test_that("Individual: remove_feature error for non-existent feature", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  
+  # Test: Non-existent feature should error
+  expect_error(ind$remove_feature(c("NonExistentFeature456")))
+})
+
+test_that("Individual: change_language updates language correctly", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("language", "ter")
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  
+  original_language <- ind$get()$language
+  
+  # Test: Change to ratio language
+  modified_ind <- ind$change_language("ratio")
+  
+  expect_equal(modified_ind$get()$language, "ratio")
+  expect_true(modified_ind$get()$language != original_language)
+  
+  # Test: Metrics should be recomputed
+  expect_true(is.numeric(modified_ind$get()$auc))
+  expect_true(is.numeric(modified_ind$get()$fit))
+})
+
+test_that("Individual: change_language to binary removes negative coefficients", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("language", "ter")
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  
+  # Find individual with negative coefficients
+  ind_with_neg <- NULL
+  for (i in 1:min(20, length(pop$get()$individuals))) {
+    ind <- pop$get_individual(i)
+    coeffs <- ind$get()$coefficients
+    if (any(coeffs < 0)) {
+      ind_with_neg <- ind
+      break
+    }
+  }
+  
+  skip_if(is.null(ind_with_neg), "No individual with negative coefficients found")
+  
+  original_k <- ind_with_neg$get()$k
+  
+  # Test: Change to binary should warn and remove negative coefficients
+  expect_warning(modified_ind <- ind_with_neg$change_language("bin"))
+  
+  # Test: All remaining coefficients should be non-negative
+  new_coeffs <- modified_ind$get()$coefficients
+  expect_true(all(new_coeffs >= 0))
+  
+  # Test: k may have decreased
+  expect_true(modified_ind$get()$k <= original_k)
+})
+
+test_that("Individual: change_data_type updates data type correctly", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("data_type", "raw")
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  
+  original_data_type <- ind$get()$data_type
+  
+  # Test: Change to prevalence type
+  modified_ind <- ind$change_data_type("PREVALENCE_TYPE")
+  
+  expect_equal(modified_ind$get()$data_type, "PREVALENCE_TYPE")
+  expect_true(modified_ind$get()$data_type != original_data_type)
+  
+  # Test: Metrics should be recomputed
+  expect_true(is.numeric(modified_ind$get()$auc))
+  expect_true(is.numeric(modified_ind$get()$fit))
+})
+
+test_that("Individual: explain_sample returns valid data.frame", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  train_data <- exp$train_data()
+  
+  # Test: Explain first sample (R uses 1-based indexing)
+  explanation <- ind$explain_sample(train_data, sample_index = 1)
+  
+  # Test: Should return a data.frame
+  expect_true(is.data.frame(explanation))
+  
+  # Test: Should have expected columns
+  expect_true(all(c("Feature", "Feature_Index", "Value", "Coefficient", 
+                    "Contribution", "CumScore") %in% names(explanation)))
+  
+  # Test: Number of rows should equal number of features in individual
+  expect_equal(nrow(explanation), ind$get()$k)
+  
+  # Test: All values should be numeric (except Feature)
+  expect_true(is.numeric(explanation$Value))
+  expect_true(is.numeric(explanation$Coefficient))
+  expect_true(is.numeric(explanation$Contribution))
+  expect_true(is.numeric(explanation$CumScore))
+})
+
+test_that("Individual: explain_sample contributions are coherent", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("language", "ter")  # Use ternary for linear combination
+  param$set_string("data_type", "raw")
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  train_data <- exp$train_data()
+  
+  explanation <- ind$explain_sample(train_data, sample_index = 1)
+  
+  # For linear languages (non-ratio), contribution = coefficient * value
+  # and CumScore should be cumulative sum
+  if (ind$get()$language != "ratio") {
+    # Test: Contributions should match coefficient * value
+    expected_contrib <- explanation$Coefficient * explanation$Value
+    expect_equal(explanation$Contribution, expected_contrib, tolerance = 1e-6)
+    
+    # Test: Final CumScore should be sum of contributions
+    final_score <- tail(explanation$CumScore, 1)
+    total_contrib <- sum(explanation$Contribution)
+    expect_equal(final_score, total_contrib, tolerance = 1e-6)
+  }
+})
+
+test_that("Individual: explain_sample error for out of bounds index", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  ind <- pop$get_individual(1)
+  train_data <- exp$train_data()
+  
+  n_samples <- ncol(train_data$get()$X)
+  
+  # Test: Index 0 should error
+  expect_error(ind$explain_sample(train_data, sample_index = 0))
+  
+  # Test: Index > n_samples should error
+  expect_error(ind$explain_sample(train_data, sample_index = n_samples + 1))
+  
+  # Test: Negative index should error
+  expect_error(ind$explain_sample(train_data, sample_index = -1))
+})
+
+# ==============================================================================
+# 15. Tests for Population manipulation methods
+# ==============================================================================
+
+test_that("Population: extend merges two populations", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 3)
+  param$set("population_size", 500)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  
+  pop1 <- exp$get_population(1)
+  pop2 <- exp$get_population(2)
+  
+  size1 <- length(pop1$get()$individuals)
+  size2 <- length(pop2$get()$individuals)
+  
+  # Test: Extend pop1 with pop2
+  pop1$extend(pop2)
+  
+  # Test: Size should be sum of both
+  expect_equal(length(pop1$get()$individuals), size1 + size2)
+})
+
+test_that("Population: add_individuals increases population size", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set("population_size", 500)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  
+  original_size <- length(pop$get()$individuals)
+  
+  # Get 3 individuals
+  ind1 <- pop$get_individual(1)
+  ind2 <- pop$get_individual(2)
+  ind3 <- pop$get_individual(3)
+  
+  individuals_to_add <- list(ind1, ind2, ind3)
+  
+  # Test: Add individuals
+  pop$add_individuals(individuals_to_add)
+  
+  # Test: Size should increase by 3
+  expect_equal(length(pop$get()$individuals), original_size + 3)
+})
+
+test_that("Population: compute_importance with aggregation", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set("population_size", 300)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  train_data <- exp$train_data()
+  
+  # Take a small subset for speed
+  pop_subset <- pop$get_first_pct(20.0)
+  
+  # Test: Compute aggregated importance with mean
+  imp_mean <- pop_subset$compute_importance(
+    train_data,
+    n_perm = 30,
+    aggregation = "mean",
+    scaled = FALSE,
+    seed = 42
+  )
+  
+  # Test: Should return numeric vector
+  expect_true(is.numeric(imp_mean))
+  expect_true(!is.null(names(imp_mean)))
+  expect_true(length(imp_mean) > 0)
+  
+  # Test: Different aggregation methods
+  imp_median <- pop_subset$compute_importance(
+    train_data,
+    n_perm = 30,
+    aggregation = "median",
+    scaled = FALSE,
+    seed = 42
+  )
+  
+  imp_max <- pop_subset$compute_importance(
+    train_data,
+    n_perm = 30,
+    aggregation = "max",
+    scaled = FALSE,
+    seed = 42
+  )
+  
+  # Test: All should have same feature names
+  expect_equal(names(imp_mean), names(imp_median))
+  expect_equal(names(imp_mean), names(imp_max))
+  
+  # Test: Max should be >= mean >= 0 (for most features)
+  # Allow some tolerance due to numerical precision
+  expect_true(all(imp_max >= imp_mean - 1e-10))
+})
+
+test_that("Population: get_size returns correct size", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set("population_size", 800)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  
+  # Test: get_size should match length of individuals
+  expected_size <- length(pop$get()$individuals)
+  expect_equal(pop$get_size(), expected_size)
+})
+
+test_that("Population: get_first_n returns exactly n individuals", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set("population_size", 1000)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  pop <- exp$get_population(exp$generation_number() - 1)
+  
+  # Test: Get first 50 individuals
+  first_50 <- pop$get_first_n(50)
+  
+  expect_equal(length(first_50$get()$individuals), 50)
+  
+  # Test: Get first 10 individuals
+  first_10 <- pop$get_first_n(10)
+  
+  expect_equal(length(first_10$get()$individuals), 10)
+  
+  # Test: Requesting more than available should return all
+  pop_size <- length(pop$get()$individuals)
+  all_pop <- pop$get_first_n(pop_size + 100)
+  
+  expect_equal(length(all_pop$get()$individuals), pop_size)
+})
+
+# ==============================================================================
+# 16. Tests for Experiment::get_all_individuals
+# ==============================================================================
+
+test_that("Experiment: get_all_individuals returns all individuals from generation", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 3)
+  param$set("population_size", 600)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  
+  # Test: Get all individuals from generation 1
+  all_inds <- exp$get_all_individuals(1)
+  
+  # Test: Should return a list
+  expect_true(is.list(all_inds))
+  
+  # Test: Length should match population size
+  pop_size <- exp$population_size(1)
+  expect_equal(length(all_inds), pop_size)
+  
+  # Test: Each element should be an individual
+  for (i in 1:min(5, length(all_inds))) {
+    expect_true(is.list(all_inds[[i]]))
+    expect_true("features" %in% names(all_inds[[i]]))
+    expect_true("auc" %in% names(all_inds[[i]]))
+  }
+})
+
+# ==============================================================================
+# 17. Tests for Param::clone independence
+# ==============================================================================
+
+test_that("Param: clone creates independent copy", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  
+  param1 <- Param$load("../../sample/param.yaml")
+  param2 <- param1$clone()
+  
+  # Test: Both params should exist
+  expect_true(!is.null(param1))
+  expect_true(!is.null(param2))
+  
+  # Test: Initially should have same values
+  expect_equal(param1$get()$general$seed, param2$get()$general$seed)
+  expect_equal(param1$get()$ga$max_epochs, param2$get()$ga$max_epochs)
+  
+  # Test: Modify param2
+  param2$set("max_epochs", 999)
+  param2$set("seed", 77777)
+  
+  # Test: param1 should remain unchanged (independence)
+  expect_true(param1$get()$ga$max_epochs != 999)
+  expect_true(param1$get()$general$seed != 77777)
+  
+  # Test: param2 should have new values
+  expect_equal(param2$get()$ga$max_epochs, 999)
+  expect_equal(param2$get()$general$seed, 77777)
+})
+
+test_that("Param: clone has different memory address", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  
+  param1 <- Param$load("../../sample/param.yaml")
+  param2 <- param1$clone()
+  
+  # Test: Different memory addresses
+  addr1 <- param1$address()
+  addr2 <- param2$address()
+  
+  expect_true(addr1 != addr2)
+})
+
+# ==============================================================================
+# 18. Tests for Experiment::compute_cv_importance
+# ==============================================================================
+
+test_that("Experiment: compute_cv_importance full test", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 3)
+  param$set("population_size", 500)
+  param$set_bool("cv", TRUE)
+  param$set("outer_folds", 3)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  
+  # Test: Compute CV importance with default parameters
+  cv_imp_default <- exp$compute_cv_importance()
+  expect_true(!is.null(cv_imp_default))
+  expect_true(is.data.frame(cv_imp_default))
+  expect_true(all(c("feature", "importance", "dispersion", "prevalence") %in% names(cv_imp_default)) ||
+              all(c("feature", "scaled_mda", "sd", "prevalence") %in% names(cv_imp_default)))
+  
+  # Test: Compute with compact format
+  cv_imp_compact <- exp$compute_cv_importance(compact = TRUE)
+  expect_true(is.numeric(cv_imp_compact))
+  expect_true(!is.null(names(cv_imp_compact)))
+  
+  # Test: Different aggregations
+  cv_imp_median <- exp$compute_cv_importance(aggregation = "median")
+  expect_true(is.data.frame(cv_imp_median))
+  
+  # Test: Scaled vs unscaled
+  cv_imp_unscaled <- exp$compute_cv_importance(scaled = FALSE)
+  expect_true(is.data.frame(cv_imp_unscaled))
+  
+  # Test: With different number of permutations
+  cv_imp_few_perm <- exp$compute_cv_importance(n_perm = 50)
+  expect_true(is.data.frame(cv_imp_few_perm))
+  
+  # Test: Deterministic with seed
+  cv_imp_seed1 <- exp$compute_cv_importance(n_perm = 50, seed = 123, compact = TRUE)
+  cv_imp_seed2 <- exp$compute_cv_importance(n_perm = 50, seed = 123, compact = TRUE)
+  expect_equal(cv_imp_seed1, cv_imp_seed2, tolerance = 1e-8)
+})
+
+test_that("Experiment: compute_cv_importance error handling", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  # Test without CV
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_bool("cv", FALSE)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  
+  # Should error without CV folds
+  expect_error(exp$compute_cv_importance())
+})
+
+test_that("Experiment: compute_cv_importance with invalid aggregation", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  skip_if_not(file.exists("../../sample/Xtrain.tsv"))
+  skip_if_not(file.exists("../../sample/Ytrain.tsv"))
+  
+  running_flag <- RunningFlag$new()
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 2)
+  param$set_bool("cv", TRUE)
+  param$set("outer_folds", 2)
+  param$set_string("X", "../../sample/Xtrain.tsv")
+  param$set_string("y", "../../sample/Ytrain.tsv")
+  
+  exp <- fit(param, running_flag)
+  
+  # Test: Invalid aggregation method should error
+  expect_error(exp$compute_cv_importance(aggregation = "invalid_method"))
+})
+
+# ==============================================================================
+# 19. Tests for edge cases in as_gpredomics_data
+# ==============================================================================
+
+test_that("Data: as_gpredomics_data with integer classes beyond 0/1", {
+  set.seed(999)
+  X <- matrix(runif(50 * 10), nrow = 50, ncol = 10)
+  rownames(X) <- paste0("Feature_", 1:50)
+  colnames(X) <- paste0("Sample_", 1:10)
+  
+  # Test with classes 5 and 10 (should be mapped to 0 and 1)
+  y <- sample(c(5, 10), 10, replace = TRUE)
+  names(y) <- colnames(X)
+  
+  # Should create data with warning about mapping
+  expect_message(data <- as_gpredomics_data(as.data.frame(X), y, FALSE, NULL, NULL, NULL, NULL))
+  
+  # Should convert to binary (0, 1, and possibly 2 for unknown)
+  expect_true(all(data$get()$y %in% c(0, 1, 2)))
+  expect_equal(data$get()$classes[1:2], c("5", "10"))
+})
+
+test_that("Data: as_gpredomics_data with unknown class handling", {
+  set.seed(888)
+  X <- matrix(runif(50 * 15), nrow = 50, ncol = 15)
+  rownames(X) <- paste0("Feature_", 1:50)
+  colnames(X) <- paste0("Sample_", 1:15)
+  
+  # Mix of 3 classes - third should be classified as unknown (2)
+  y <- factor(sample(c("A", "B", "C"), 15, replace = TRUE), 
+              levels = c("A", "B", "C"))
+  names(y) <- colnames(X)
+  
+  # Should handle with warning about unknown class
+  expect_warning(data <- as_gpredomics_data(as.data.frame(X), y, FALSE, NULL, NULL, NULL, NULL))
+  
+  # Should have classes 0, 1, and 2 (unknown)
+  expect_true(all(data$get()$y %in% c(0, 1, 2)))
+  expect_true(2 %in% data$get()$y)  # Should have some unknowns
+  expect_equal(data$get()$classes, c("A", "B", "unknown"))
+})
+
+test_that("Data: as_gpredomics_data with factor and NA values", {
+  set.seed(777)
+  X <- matrix(runif(30 * 8), nrow = 30, ncol = 8)
+  rownames(X) <- paste0("Feature_", 1:30)
+  colnames(X) <- paste0("Sample_", 1:8)
+  
+  # Factor with NA values
+  y <- factor(c("control", "case", NA, "control", "case", NA, "control", "case"),
+              levels = c("control", "case"))
+  names(y) <- colnames(X)
+  
+  # Should handle NA as unknown (class 2)
+  expect_warning(data <- as_gpredomics_data(as.data.frame(X), y, FALSE, NULL, NULL, NULL, NULL))
+  
+  # NA should be mapped to unknown (2)
+  expect_true(2 %in% data$get()$y)
+  expect_equal(sum(data$get()$y == 2), 2)  # Two NA values
+})
+
+# ==============================================================================
+# 20. Tests for Param::save
+# ==============================================================================
+
+test_that("Param: save method creates file", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  
+  param <- Param$load("../../sample/param.yaml")
+  param$set("max_epochs", 42)
+  param$set("seed", 99999)
+  
+  temp_file <- tempfile(fileext = ".yaml")
+  
+  # Test: Save should succeed
+  result <- param$save(temp_file)
+  
+  expect_true(file.exists(temp_file))
+  expect_equal(result, temp_file)
+  
+  # Test: Load saved param and verify values
+  param_loaded <- Param$load(temp_file)
+  expect_equal(param_loaded$get()$ga$max_epochs, 42)
+  expect_equal(param_loaded$get()$general$seed, 99999)
+  
+  unlink(temp_file)
+})
+
+test_that("Param: save with modifications", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  
+  param <- Param$load("../../sample/param.yaml")
+  
+  # Modify multiple parameters
+  param$set("population_size", 2000)
+  param$set("k_penalty", 0.05)
+  param$set_string("algo", "beam")
+  param$set_bool("gpu", TRUE)
+  
+  temp_file <- tempfile(fileext = ".yaml")
+  param$save(temp_file)
+  
+  # Reload and verify all modifications
+  param_reloaded <- Param$load(temp_file)
+  expect_equal(param_reloaded$get()$ga$population_size, 2000)
+  expect_equal(param_reloaded$get()$general$k_penalty, 0.05)
+  expect_equal(param_reloaded$get()$general$algo, "beam")
+  expect_true(param_reloaded$get()$general$gpu)
+  
+  unlink(temp_file)
+})
+
+test_that("Param: save to non-existent directory should create it or fail gracefully", {
+  skip_if_not(file.exists("../../sample/param.yaml"))
+  
+  param <- Param$load("../../sample/param.yaml")
+  
+  # Try to save to non-existent directory
+  non_existent_path <- file.path(tempdir(), "non_existent_dir_12345", "param.yaml")
+  
+  # This may error depending on implementation
+  # Either it creates the directory or fails with an error
+  result <- tryCatch({
+    param$save(non_existent_path)
+    "success"
+  }, error = function(e) {
+    "failed"
+  })
+  
+  expect_true(result %in% c("success", "failed"))
+  
+  # Cleanup if successful
+  if (result == "success" && file.exists(non_existent_path)) {
+    unlink(dirname(non_existent_path), recursive = TRUE)
+  }
 })

@@ -6,17 +6,17 @@
 \alias{$.Individual}
 \title{Individual}
 \format{
-An object of class \code{environment} of length 16.
+An object of class \code{environment} of length 20.
 }
 \usage{
 Individual
 }
 \description{
-A single predictive model from the Gpredomics algorithm
+A single predictive model from the Gpredomics algorithm.
 }
 \details{
 Individual represents a single model (individual) in the population.
-It contains:
+It encapsulates:
 \itemize{
 \item Feature set with coefficients (sparse representation)
 \item Performance metrics (AUC, accuracy, sensitivity, specificity, fit value)
@@ -29,22 +29,22 @@ It contains:
 \section{Methods}{
 
 \describe{
-\item{\code{get()}}{Get complete individual description including all fields and metrics}
-\item{\code{get_metrics()}}{Get base metrics (AUC, fit, accuracy, sensitivity, specificity, threshold, rejection_rate)}
-\item{\code{compute_metrics(data)}}{Compute all metrics including additional ones (MCC, NPV, PPV, F1-score, G-mean) on new data}
-\item{\code{predict(data)}}{Predict classes and scores for samples in the provided Data object}
-\item{\code{fit(data, param)}}{Refit individual on new data with complete metric computation including penalties}
-\item{\code{refit()}}{Refit individual on its associated data using complete Gpredomics logic}
-\item{\code{evaluate()}}{Compute prediction scores on associated data}
-\item{\code{to_string()}}{Get debug string representation}
-\item{\code{address()}}{Get memory address as hexadecimal string}
-\item{\code{print()}}{Print formatted individual summary to console}
-\item{\code{set_threshold(threshold)}}{Set prediction threshold for binary classification}
-\item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute OOB permutation feature importance}
-\item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Remove low-importance features using absolute threshold}
-\item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Remove low-importance features using quantile threshold}
-\item{\code{get_genealogy(experiment, max_depth)}}{Retrieve ancestry tree across generations for visualization}
-\item{\code{explain_sample(data, sample_index)}}{Explain individual prediction for one sample with feature contributions. Parameters: data (Data object), sample_index (1-based R index). Returns data.frame with Feature, Value, Coefficient, Contribution, CumScore.}
+\item{\code{get()}}{Get complete individual description including all fields and metrics.}
+\item{\code{get_metrics()}}{Get base metrics (AUC, fit, accuracy, sensitivity, specificity, threshold, rejection_rate).}
+\item{\code{compute_metrics(data)}}{Compute all metrics including additional ones (MCC, NPV, PPV, F1-score, G-mean) on new data.}
+\item{\code{predict(data)}}{Predict classes and scores for samples in the provided Data object.}
+\item{\code{fit(data, param)}}{Refit individual on new data with complete metric computation including penalties.}
+\item{\code{refit()}}{Refit individual on its associated data using complete Gpredomics logic.}
+\item{\code{evaluate()}}{Compute prediction scores on associated data.}
+\item{\code{to_string()}}{Get debug string representation.}
+\item{\code{address()}}{Get memory address as hexadecimal string.}
+\item{\code{print()}}{Print formatted individual summary to console.}
+\item{\code{set_threshold(threshold)}}{Set prediction threshold for binary classification.}
+\item{\code{compute_importance(data, n_perm, seed, used_only)}}{Compute OOB permutation feature importance.}
+\item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Remove low-importance features using absolute threshold.}
+\item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Remove low-importance features using quantile threshold.}
+\item{\code{get_genealogy(experiment, max_depth)}}{Retrieve ancestry tree across generations for visualization.}
+\item{\code{explain_sample(data, sample_index)}}{Explain individual prediction for one sample with feature contributions.}
 }
 }
 

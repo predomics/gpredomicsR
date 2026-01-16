@@ -22,39 +22,3 @@
   invisible()
 }
 
-#' @export
-print.Data <- function(x, ...) {
-  cat(x$print(), "\n")
-  invisible(x)
-}
-
-#' @export
-print.Individual <- function(x, ...) {
-  x$print()
-  invisible(x)
-}
-
-#' @export
-print.Population <- function(x, ...) {
-  cat(x$print(), "\n")
-  invisible(x)
-}
-
-#' @export
-print.Jury <- function(x, ...) {
-  cat(x$print(), "\n")
-  invisible(x)
-}
-
-#' @export
-print.Experiment <- function(x, ...) {
-  cat(x$print(), "\n")
-  invisible(x)
-}
-
-#' @export
-print.Param <- function(x, ...) {
-  cat(x$address(), "\n")
-  print(x$get())
-  invisible(x)
-}

@@ -12,11 +12,20 @@ An object of class \code{environment} of length 4.
 RunningFlag
 }
 \description{
-A struct to manage the running flag for controlling algorithm execution.
+A thread-safe flag for controlling algorithm execution.
 }
 \details{
-The RunningFlag object allows you to control the execution of long-running algorithms.
-It can be used to stop algorithms gracefully from another thread or after user interruption.
+The RunningFlag object provides a thread-safe mechanism to control the execution
+of long-running algorithms. It uses atomic operations internally to ensure safe
+concurrent access from multiple threads.
+
+Common use cases:
+\itemize{
+\item Stopping algorithms gracefully from another thread
+\item Handling user interruption signals
+\item Monitoring algorithm execution state
+\item Coordinating between R and Rust threads
+}
 }
 \section{Methods}{
 

@@ -42,7 +42,12 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
   original.dir <- getwd()
   
   # Ensure working directory is restored even if an error occurs
-  on.exit(setwd(original.dir), add = TRUE)
+  on.exit({
+    tryCatch(
+      setwd(original.dir),
+      error = function(e) warning("Failed to restore working directory: ", conditionMessage(e))
+    )
+  }, add = TRUE)
   
   # Best-effort: ensure Rust logger is initialized and set to requested level (idempotent)
   try(GLogger$level(level = glog_level), silent = TRUE)
@@ -67,8 +72,14 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
     ),
     params = paramRust$get(),
     data = list(
-      train = expRust$get_data_robj(train = TRUE),
-      test = expRust$get_data_robj(train = FALSE)
+      train = tryCatch(
+        expRust$get_data_robj(train = TRUE),
+        error = function(e) { warning("Failed to get training data: ", conditionMessage(e)); NULL }
+      ),
+      test = tryCatch(
+        expRust$get_data_robj(train = FALSE),
+        error = function(e) NULL
+      )
     ),
     model_collection = parseExperiment(expRust),  # Convert Rust pointer to R object
     execTime = as.numeric(Sys.time() - startingTime, units = "mins")
@@ -76,25 +87,29 @@ runExperiment <- function(param.path = "sample/param.yaml", name = "", glog_leve
   
   # fix the class
   # for the TRAIN dataset
-  # Ensure it's a vector
-  if (!is.vector(experiment$data$train$y)) {
-    experiment$data$train$y <- as.vector(experiment$data$train$y)  # Force conversion
-  }
-  # Convert binary numeric to factor
-  unique_vals <- unique(experiment$data$train$y)
-  if (length(table(experiment$data$train$y)) == 2) {
-    experiment$data$train$y <- as.factor(experiment$data$train$y)
+  if (!is.null(experiment$data$train) && !is.null(experiment$data$train$y)) {
+    # Ensure it's a vector
+    if (!is.vector(experiment$data$train$y)) {
+      experiment$data$train$y <- as.vector(experiment$data$train$y)  # Force conversion
+    }
+    # Convert binary numeric to factor
+    unique_vals <- unique(experiment$data$train$y)
+    if (length(table(experiment$data$train$y)) == 2) {
+      experiment$data$train$y <- as.factor(experiment$data$train$y)
+    }
   }
   
-  # same thing for the TEST dataset
-  # Ensure it's a vector
-  if (!is.vector(experiment$data$test$y)) {
-    experiment$data$test$y <- as.vector(experiment$data$test$y)  # Force conversion
-  }
-  # Convert binary numeric to factor
-  unique_vals <- unique(experiment$data$test$y)
-  if (length(table(experiment$data$test$y)) == 2) {
-    experiment$data$test$y <- as.factor(experiment$data$test$y)
+  # same thing for the TEST dataset (if it exists)
+  if (!is.null(experiment$data$test)) {
+    # Ensure it's a vector
+    if (!is.vector(experiment$data$test$y)) {
+      experiment$data$test$y <- as.vector(experiment$data$test$y)  # Force conversion
+    }
+    # Convert binary numeric to factor
+    unique_vals <- unique(experiment$data$test$y)
+    if (length(table(experiment$data$test$y)) == 2) {
+      experiment$data$test$y <- as.factor(experiment$data$test$y)
+    }
   }
   
   return(experiment)
@@ -206,12 +221,39 @@ parseExperiment <- function(exp)
     return(NULL)
   }
   
-  nb_generations <- exp$generation_number()
+  nb_generations <- tryCatch(
+    exp$generation_number(),
+    error = function(e) {
+      warning("Failed to get generation number: ", conditionMessage(e))
+      return(0)
+    }
+  )
+  
+  if (nb_generations == 0) {
+    return(NULL)
+  }
+  
   generations <- list()
   for (i in 1:nb_generations)
   {
-    generations[[paste0("gen_",i)]] <- exp$get_generation(i-1) # the index in rust is 0-based
+    gen <- tryCatch(
+      exp$get_generation(i), # 1-based indexing
+      error = function(e) {
+        warning("Failed to get generation ", i, ": ", conditionMessage(e))
+        return(NULL)
+      }
+    )
+    # Only add valid populations
+    if (!is.null(gen) && isPopulation(gen)) {
+      generations[[paste0("gen_",i)]] <- gen
+    }
   }
+  
+  # Return NULL if no valid generations were retrieved
+  if (length(generations) == 0) {
+    return(NULL)
+  }
+  
   return(generations)
 }
 

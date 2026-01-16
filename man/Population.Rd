@@ -6,47 +6,57 @@
 \alias{$.Population}
 \title{Population}
 \format{
-An object of class \code{environment} of length 25.
+An object of class \code{environment} of length 27.
 }
 \usage{
 Population
 }
 \description{
-gpredomics Population object
+A collection of Individual models from Gpredomics.
 }
 \details{
-Population represents a collection of Individuals.
-It provides methods to filter, analyze, and manipulate sets of individuals, as well as compute
-aggregate predictions and feature importances across the population.
+Population represents a collection of Individuals (models).
+It provides comprehensive methods to:
+\itemize{
+\item Filter populations by performance metrics (AUC, fit, sensitivity, specificity)
+\item Filter by structural properties (number of features, diversity)
+\item Select best models (FBM - Family of Best Models)
+\item Compute aggregate predictions across models
+\item Calculate feature importance at population level
+\item Prune features based on importance
+\item Combine and manipulate model collections
+}
 }
 \section{Methods}{
 
 \describe{
-\item{\code{get()}}{Get the population associated with the experiment. Returns R object representing the Population.}
-\item{\code{display_feature_prevalence(data, nb_features)}}{Display the prevalence of features in the population. Parameters: data (Data object), nb_features (number of top features to display).}
-\item{\code{predict_score_matrix(data)}}{Predict all individuals of the population on data and return a dataframe (Rows = samples, Columns = individuals/experts). Parameter: data (Data object to predict on). Returns dataframe with predicted scores.}
-\item{\code{predict_class_matrix(data)}}{Predict classes for all individuals of the population on data and return a dataframe (Rows = samples, Columns = individuals/experts, Values = predicted classes 0 or 1). Parameter: data (Data object to predict on). Returns dataframe with predicted classes.}
-\item{\code{filter_by_auc(min_auc)}}{Filter population by AUC threshold. Parameter: min_auc (minimum AUC threshold). Returns filtered Population object.}
-\item{\code{filter_by_fit(min_fit)}}{Filter population by fitness threshold. Parameter: min_fit (minimum fit threshold). Returns filtered Population object.}
-\item{\code{filter_by_diversity(min_diversity_pct, by_niche)}}{Filter population by diversity using Jaccard dissimilarity. Parameters: min_diversity_pct (minimum diversity percentage 0-100), by_niche (whether to compute diversity within niches). Returns filtered Population object.}
-\item{\code{filter_by_sensitivity(min_sensitivity)}}{Filter population by sensitivity threshold. Parameter: min_sensitivity (minimum sensitivity threshold). Returns filtered Population object.}
-\item{\code{filter_by_specificity(min_specificity)}}{Filter population by specificity threshold. Parameter: min_specificity (minimum specificity threshold). Returns filtered Population object.}
-\item{\code{filter_by_mask(mask)}}{Filter population using a logical vector (1/0). Parameter: mask (integer vector 1/0 indicating which individuals to keep). Returns filtered Population object.}
-\item{\code{filter_by_k(min_k, max_k)}}{Filter population by number of features (k). Parameters: min_k (minimum number of features), max_k (maximum number of features). Returns filtered Population object.}
-\item{\code{get_fbm(alpha)}}{Get Family of Best Models (FBM) using confidence interval selection. This method selects models with performance statistically equivalent to the best model. Parameters: alpha (confidence level, default 0.05 for 95\% confidence). If FBM selection fails, alpha\% to keep). Returns Population object containing the FBM.}
-\item{\code{get_first_pct(pct)}}{Get first percentage of individuals sorted by fitness. Parameter: pct (percentage 0-100). Returns Population object containing the selected individuals.
-\item{\code{fit(data, param)}}{Compute fitness metrics for all individuals on new data or parameters and sort it. Parameters: data (new Data object to fit on), param (Param object containing fit function and penalties).}
-\item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Prune all individuals by importance threshold. Parameters: threshold (importance threshold), n_perm (number of permutations, default 100), seed (base seed for RNG, default 4815162342), min_k (minimum features to keep, default 1). Returns new Population with pruned individuals.}
-\item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Prune all individuals by importance quantile. Parameters: quantile (quantile value 0-1), eps (epsilon value, default 0.0), n_perm (number of permutations, default 100), seed (base seed for RNG, default 4815162342), min_k (minimum features to keep, default 1). Returns new Population with pruned individuals.}
-\item{\code{address()}}{Get memory address of this Population object. Returns string representing the memory address.}
-\item{\code{get_individual(index)}}{Get an Individual of a population by index. Parameter: index (index of the individual to retrieve). Returns Individual object at the specified index.}
-\item{\code{print_as_gpredomics()}}{Print the Population in gpredomics style to R console.}
-\item{\code{print()}}{Get comprehensive print information about the population. Returns string representing the Population summary.}
-\item{\code{from_individuals(individuals)}}{Create a Population from a vector or list of R Individual objects. Parameter: individuals (R vector or list of Individual objects, must have at least one). Returns Population object created from the individuals.}
-\item{\code{extend(other)}}{Extend this population with another population. Parameter: other (another Population object to add).}
-\item{\code{add_individuals(individuals)}}{Add individuals from a vector or list to this population. Parameter: individuals (R vector or list of Individual objects).}
-\item{\code{compute_importance(data, n_perm, aggregation, scaled, seed, compact)}}{Compute full Population-level MDA importances for this Population on given Data. Parameters: data (Data object to compute importances on), n_perm (number of permutations, default 1000), aggregation (aggregation method: "mean" (default) or "median"), scaled (whether to scale importances, default TRUE), seed (random seed for reproducibility, default 4815162342), compact (whether to return a compact vector (TRUE) or full data.frame (FALSE, default)). Returns DataFrame with columns: feature, importance, dispersion, prevalence.}
-\item{\code{compute_importance_matrix(data, n_perm, used_only, seed)}}{Compute full Population-level MDA importance matrix for this Population on given Data. Parameters: data (Data object to compute importances on), n_perm (number of permutations, default 1000), used_only (whether to compute importances only for features used in the population, default TRUE), seed (random seed for reproducibility, default 4815162342). Returns Matrix (data.frame) with rows = features, columns = individuals.}
+\item{\code{get()}}{Get the population associated with the experiment.}
+\item{\code{display_feature_prevalence(data, nb_features)}}{Display the prevalence of features in the population.}
+\item{\code{predict_score_matrix(data)}}{Predict all individuals and return score matrix (samples x individuals).}
+\item{\code{predict_class_matrix(data)}}{Predict all individuals and return class matrix (samples x individuals).}
+\item{\code{filter_by_auc(min_auc)}}{Filter population by minimum AUC threshold.}
+\item{\code{filter_by_fit(min_fit)}}{Filter population by minimum fitness threshold.}
+\item{\code{filter_by_diversity(min_diversity_pct, by_niche)}}{Filter population by Jaccard dissimilarity.}
+\item{\code{filter_by_sensitivity(min_sensitivity)}}{Filter population by minimum sensitivity.}
+\item{\code{filter_by_specificity(min_specificity)}}{Filter population by minimum specificity.}
+\item{\code{filter_by_mask(mask)}}{Filter using logical vector (1/0).}
+\item{\code{filter_by_k(min_k, max_k)}}{Filter by number of features (k).}
+\item{\code{get_fbm(alpha)}}{Get Family of Best Models using statistical selection.}
+\item{\code{get_first_pct(pct)}}{Get first percentage of individuals sorted by fitness.}
+\item{\code{fit(data, param)}}{Recompute fitness metrics for all individuals.}
+\item{\code{prune_by_threshold(threshold, n_perm, seed, min_k)}}{Prune all individuals by importance threshold.}
+\item{\code{prune_by_quantile(quantile, eps, n_perm, seed, min_k)}}{Prune all individuals by importance quantile.}
+\item{\code{address()}}{Get memory address of this Population object.}
+\item{\code{get_individual(index)}}{Get an Individual by index.}
+\item{\code{print_as_gpredomics()}}{Print population in gpredomics style.}
+\item{\code{print()}}{Get comprehensive population summary.}
+\item{\code{from_individuals(individuals)}}{Create Population from vector/list of Individuals.}
+\item{\code{extend(other)}}{Extend population with another population.}
+\item{\code{add_individuals(individuals)}}{Add individuals from vector/list.}
+\item{\code{compute_importance(data, n_perm, aggregation, scaled, seed, compact)}}{Compute population-level MDA importance.}
+\item{\code{compute_importance_matrix(data, n_perm, used_only, seed)}}{Compute importance matrix (features x individuals).}
+\item{\code{get_size()}}{Get number of individuals in population.}
+\item{\code{get_first_n(n)}}{Get first N individuals.}
 }
 }
 

@@ -12,45 +12,49 @@ An object of class \code{environment} of length 23.
 Experiment
 }
 \description{
-Complete experiment container for Gpredomics runs
+Complete experimental run container for Gpredomics algorithms.
 }
 \details{
-Experiment encapsulates an entire Gpredomics run including:
-\itemize{
-\item Training and optional test data
-\item Algorithm parameters
-\item Evolution history (populations across generations)
-\item Cross-validation fold information (if applicable)
-\item Final best population and optional Jury
-\item Execution metadata (timestamp, version, execution time)
+Experiment encapsulates a complete Gpredomics algorithm run with:
+\\itemize{
+\\item \\strong{Data}: Training and optional test datasets
+\\item \\strong{Parameters}: Complete algorithm configuration
+\\item \\strong{Evolution history}: Populations across all generations (if keep_trace=TRUE)
+\\item \\strong{Cross-validation}: Fold definitions and per-fold populations (if CV enabled)
+\\item \\strong{Final results}: Best population and optional Jury ensemble
+\\item \\strong{Metadata}: Timestamp, version, execution time
 }
+
+Experiments can be saved/loaded for reproducibility and post-hoc analysis.
+Methods provide access to individuals, populations, and performance metrics
+at different granularities (generation, fold, overall).
 }
 \section{Methods}{
 
-\describe{
-\item{\code{individual(generation, order)}}{Retrieves a full description of an individual from a specified generation and order. Parameters: generation (i32 generation index), order (i32 order within generation). Returns Individual object.}
-\item{\code{test_data()}}{Retrieves the test data associated with the experiment. Returns Data object representing the test data.}
-\item{\code{train_data()}}{Retrieves the training data associated with the experiment. Returns Data object representing the training data.}
-\item{\code{get_data_robj(train)}}{Retrieves the data associated with the experiment as an R object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns R object representing the data.}
-\item{\code{get_data(train)}}{Retrieves the data associated with the experiment as a Data object. Parameter: train (logical; if TRUE, returns training data, otherwise test data). Returns Data object.}
-\item{\code{get_generation(generation)}}{Retrieves descriptions of all individuals from a specified generation. Parameter: generation (i32 generation index). Returns R list object encapsulating features and metrics of all individuals in the generation.}
-\item{\code{get_fold_data(fold, train)}}{Get fold data for cross-validation. Parameters: fold (fold index 0-based), train (logical: if TRUE returns training data, if FALSE returns validation data). Returns Data object for the specified fold.}
-\item{\code{get_fold_generation(fold, generation, train)}}{Get population from a specific CV fold and generation. Parameters: fold (fold index 0-based), generation (generation index 0-based), train (logical: if TRUE uses training data, if FALSE uses validation data, default TRUE). Returns Population object.}
-\item{\code{get_n_folds()}}{Get the number of cross-validation folds in the experiment. Returns number of CV folds as integer.}
-\item{\code{get_best_population()}}{Get the final/best population from the experiment. Returns Population object containing the best individuals.}
-\item{\code{compute_cv_importance(n_perm, aggregation, scaled, seed, compact)}}{Compute cross-validated feature importance (MDA-like) aggregated across CV folds. Parameters: n_perm (number of permutations, default 1000), aggregation ("mean" or "median", default "mean"), scaled (whether to scale, default TRUE), seed (random seed, default 4815162342), compact (return vector if TRUE or data.frame if FALSE, default FALSE). Returns either data.frame or named vector.}
-\item{\code{compute_cv_importance_matrix(n_perm, used_only, seed, aggregation, scaled)}}{Compute per-fold CV population-level importance matrix. Parameters: n_perm (number of permutations, default 1000), used_only (restrict to FBM features, default TRUE), seed (base seed for RNG, default 4815162342), aggregation (population aggregation method: "mean" or "median", default "mean"), scaled (scale importances, default TRUE). Returns numeric matrix: n_features x n_folds.}
-\item{\code{generation_number()}}{Get the number of generations in the population. Returns number of generations.}
-\item{\code{population_size(generation)}}{Get the size (number of individuals) of a certain generation in a Population. Parameter: generation (i32 generation index). Returns integer size.}
-\item{\code{load_data(x_path, y_path)}}{Load an external dataset to evaluate the model. Parameters: x_path (path to X data file), y_path (path to y data file). Returns Data object containing the loaded data.}
-\item{\code{get_param()}}{Get the param object associated with the experiment. Returns Param object containing the experiment parameters.}
-\item{\code{get_jury()}}{Get the jury object associated with the experiment. Returns Jury object containing the jury details.}
-\item{\code{load(path)}}{Load a serialized experiment. Parameter: path (path to the experiment file). Returns loaded Experiment object.}
-\item{\code{save(path)}}{Save an experiment. Parameter: path (path to save the experiment).}
-\item{\code{get_population(generation)}}{Extract population from experiment, optionally specifying generation number. Parameter: generation (optional generation number, 0-based; if None, returns final population). Returns Population object for the specified generation or final population.}
-\item{\code{address()}}{Get memory address of this Experiment object. Returns string representing the memory address.}
-\item{\code{print()}}{Get print of this Experiment. Returns string representing the Experiment summary.}
-\item{\code{get_history(data, scope)}}{Get training history with specified scope. Parameters: data (Data object to evaluate on), scope ("best", "fbm", "top5", or "all", default "best"). Returns data.frame with metrics per generation (and per fold if CV).}
+\\describe{
+\\item{\\code{individual(generation, order)}}{Retrieve specific individual from generation.}
+\\item{\\code{test_data()}}{Get test data if available.}
+\\item{\\code{train_data()}}{Get training data.}
+\\item{\\code{get_data_robj(train)}}{Get data as R object.}
+\\item{\\code{get_data(train)}}{Get data as Data object.}
+\\item{\\code{get_generation(generation)}}{Get all individuals from a generation.}
+\\item{\\code{get_fold_data(fold, train)}}{Get CV fold data.}
+\\item{\\code{get_fold_generation(fold, generation, train)}}{Get population from CV fold.}
+\\item{\\code{get_n_folds()}}{Get number of CV folds.}
+\\item{\\code{get_best_population()}}{Get final/best population.}
+\\item{\\code{compute_cv_importance(n_perm, aggregation, scaled, seed, compact)}}{Compute aggregated CV feature importance.}
+\\item{\\code{compute_cv_importance_matrix(n_perm, used_only, seed, aggregation, scaled)}}{Compute per-fold importance matrix.}
+\\item{\\code{generation_number()}}{Get number of generations.}
+\\item{\\code{population_size(generation)}}{Get population size for a generation.}
+\\item{\\code{load_data(x_path, y_path, features_in_columns)}}{Load external dataset for evaluation.}
+\\item{\\code{get_param()}}{Get parameter object.}
+\\item{\\code{get_jury()}}{Get Jury ensemble if computed.}
+\\item{\\code{load(path)}}{Load serialized experiment from disk.}
+\\item{\\code{save(path)}}{Save experiment to disk.}
+\\item{\\code{get_population(generation)}}{Extract population at specified generation.}
+\\item{\\code{address()}}{Get memory address.}
+\\item{\\code{print()}}{Get formatted experiment summary.}
+\\item{\\code{get_history(data, scope)}}{Get training history with metrics per generation.}
 }
 }
 

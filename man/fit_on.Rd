@@ -9,7 +9,7 @@ fit_on(data, param, running_flag)
 \arguments{
 \item{data}{Data object containing the training data (features and labels)}
 
-\item{param}{Param object containing experiment configuration (algorithm, CV settings, etc.)}
+\item{param}{Param object containing experiment configuration}
 
 \item{running_flag}{RunningFlag object to control and monitor execution}
 }
@@ -17,10 +17,33 @@ fit_on(data, param, running_flag)
 Experiment object containing populations, final results, and optional Jury
 }
 \description{
-Run the Gpredomics algorithm using a pre-loaded Data object
+Run the Gpredomics algorithm using a pre-loaded Data object.
 }
 \details{
-This function runs Gpredomics algorithms (GA, BEAM, MCMC) on data already loaded in R.
-Unlike fit(), this function uses an existing Data object instead of loading from file paths.
-If param$voting$vote is TRUE, a Jury ensemble is automatically computed.
+Runs Gpredomics algorithm on pre-loaded Data object.
 }
+\section{Arguments}{
+\itemize{
+\item \code{data} - Data object containing features and labels
+\item \code{param} - Param object containing algorithm configuration
+\item \code{running_flag} - RunningFlag for execution control and monitoring
+}
+}
+
+\section{Returns}{
+An Experiment object containing all results and metadata
+
+This function runs Gpredomics algorithms (GA, BEAM, MCMC) on data already loaded in R.
+Unlike fit(), this bypasses file loading and uses an existing Data object directly.
+
+Key differences from fit():
+\\itemize{
+\\item No data file loading (uses provided Data object)
+\\item Holdout ratio automatically set to 0.0 (no automatic test split)
+\\item Useful for programmatically generated or preprocessed data
+\\item Thread count resolved from R options or param settings
+}
+
+If param$voting$vote = TRUE, a Jury ensemble is automatically computed.
+}
+

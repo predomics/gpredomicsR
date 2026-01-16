@@ -931,8 +931,14 @@ as.gpredomics.data <- function(
   sample.tags = NULL
 ) {
   # Validation
-  if (missing(X) || missing(y)) {
-    stop("Both X (feature matrix) and y (labels) are required")
+  if (missing(X)) {
+    stop("Feature matrix is required")
+  }
+
+  if (missing(y)) {
+    warning("Response vector 'y' is missing; setting all samples as unlabelled (2)")
+    y <- factor(rep(NA, if (features.in.columns) ncol(X) else nrow(X)), levels = c(0, 1, 2))
+    names(y) <- if (features.in.columns) rownames(X) else colnames(X)
   }
   
   # Convert to data.frame if matrix

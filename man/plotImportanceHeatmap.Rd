@@ -2,7 +2,7 @@
 % Please edit documentation in R/visu.R
 \name{plotImportanceHeatmap}
 \alias{plotImportanceHeatmap}
-\title{Plot Importance Heatmap: Feature Importance Across Folds or Individuals}
+\title{Plot Importance Heatmap: Feature Importance Across folds or Individuals}
 \usage{
 plotImportanceHeatmap(
   importance_matrix,
@@ -37,5 +37,5 @@ From \code{experiment$compute_cv_importance_matrix()} or \code{population$comput
 A ggplot2 object.
 }
 \description{
-Plot Importance Heatmap: Feature Importance Across Folds or Individuals
+Plot Importance Heatmap: Feature Importance Across folds or Individuals
 }

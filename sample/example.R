@@ -1,11 +1,10 @@
 #---------------------------------------------
 # Recompile and load libraries
 #---------------------------------------------
-rextendr::document()
-
 library(readr)
 library(tibble)
 library(dplyr)
+library(gpredomicsR)
 options(gpredomics.threads.number = 8)
 
 #---------------------------------------------
@@ -47,18 +46,23 @@ gpred_test <- as.gpredomics.data(
 param <- Param$load("sample/param.yaml")
 running <- RunningFlag$new()
 
-# Launch the experiment
+# Launch the experimen
+time <- Sys.time()
 exp <- fit_on(gpred_train, param, running)
+end <- Sys.time()
 
 #---------------------------------------------
 # Get experiment results
 #---------------------------------------------
 
+# Print evolution
+plot(exp)
+
 # Get the best population (last generation)
 pop <- exp$get_best_population()
 
 # Print the number of generation
-exp$generation_number()
+length(exp)
 
 # Get a specific generation
 exp$get_generation(20)
@@ -68,58 +72,55 @@ exp$get_generation(20)
 #---------------------------------------------
 
 # Get the best model
-best <- pop$get_individual(1)
+best_ind <- pop[1]
 
 # Get the best model metrics on training set
-best$get_metrics()
+best_ind$get_metrics()
 
 # Get the best model metrics on other set
-best$compute_metrics(gpred_test)
+best_ind$compute_metrics(gpred_test)
 
 # Make prediction with the best model
-best$predict(gpred_train)$class
-best$predict(gpred_test)$class
+best_ind$predict(gpred_train)$class
+best_ind$predict(gpred_test)$class
 
 # Compute the feature importance (MDA)
-imp <- best$compute_importance(gpred_train, n_perm=1000, seed=4815162342, used_only=TRUE)
+imp <- best_ind$compute_importance(gpred_train, n_perm=1000, seed=4815162342, used_only=TRUE)
 
 # Prune Individual based on a MDA threshold
-pruned_best <- best$prune_by_threshold(0, n_perm=1000, seed=4815162342, min_k = 10)
+pruned_best_ind <- best_ind$prune_by_threshold(0, n_perm=1000, seed=4815162342, min_k = 10)
 
 # Better AUC, worst MCC
-best$compute_metrics(gpred_test)$auc
-pruned_best$compute_metrics(gpred_test)$auc
+best_ind$compute_metrics(gpred_test)$auc
+pruned_best_ind$compute_metrics(gpred_test)$auc
 
-best$compute_metrics(gpred_test)$mcc
-pruned_best$compute_metrics(gpred_test)$mcc
+best_ind$compute_metrics(gpred_test)$mcc
+pruned_best_ind$compute_metrics(gpred_test)$mcc
 
 # Prune Individual based on a MDA quantile
-pruned_best_2 <- best$prune_by_quantile(quantile=0.05, eps=0, n_perm=1000, seed=4815162342, min_k = 10)
+pruned_best_ind_2 <- best_ind$prune_by_quantile(quantile=0.05, eps=0, n_perm=1000, seed=4815162342, min_k = 10)
 
 # Create a Population from a vector/list of Individuals
-ex_pop <- Population$from_individuals(c(best, pruned_best))
+ex_pop <- Population$from_individuals(c(best_ind, pruned_best_ind))
 
 # Fit Individual on new data / on new param
 fit_mcc <- param
-fit_mcc$set_string("fit", "mcc")
-best$fit(gpred_train, param)
+param[["fit"]] <- "mcc"
 
-plotBarcode(data = gpred_train$get(), select_features = best$get()$features, fixed.scale = TRUE)
+best_ind$fit(gpred_train, param)
+
+plotBarcode(data = gpred_train$get(), select_features = best_ind$get()$features, fixed.scale = TRUE)
 
 # Study the Individual genealogy
-gen <- best$get_genealogy(exp, max_depth = 4)
-plot_genealogy(gen, node_vars = list(color="language"))
+plot_genealogy(best_ind, exp, 3, node_vars = list(color="language"))
 
 # Explain a specific prediction with waterfall plot
 # Show feature contributions for first sample
-plotIndividualWaterfall(best, gpred_train, sample = 1)
+plotIndividualWaterfall(best_ind, gpred_train, sample = 1)
 
 # Show contributions for a specific sample with custom title
-plotIndividualWaterfall(best, gpred_train, sample = 5, 
+plotIndividualWaterfall(best_ind, gpred_train, sample = 5, 
                         main = "Feature contributions for sample 5")
-
-# Show only top 10 features by absolute contribution
-plotIndividualWaterfall(best, gpred_test, sample = 3, top_n = 10)
 
 #---------------------------------------------
 # Dealing with population
@@ -253,8 +254,6 @@ param$set("user_penalties_weight", 1)
 # Launch the experiment
 exp <- fit_on(gpred_train, param, running)
 
-
-
 # Control the application of the penalty
 pop <- exp$get_best_population()$get_first_pct(10)
 msp_seven_count <- 0
@@ -266,3 +265,15 @@ for (ind in pop$get()$individuals) {
 
 # Severely penalized feature is not represented in our 10% best models
 print(msp_seven_count)
+
+#---------------------------------------------
+# Grid search
+#---------------------------------------------
+
+grid <- expand.grid(language=c("ter"), data_type=c("raw"), k_penalty=c(0), inner_folds=c(5), resampling_inner_folds_epochs=c(0), overfit_penalty=c(0, 0.1, 0.5, 1, 2, 5, 10, 30, 50), population_size=1000, max_epochs=100)
+param_grid_search <- param$clone()
+
+results <- grid_search(grid, param_grid_search, df_X_train, y_train, 
+                       metric = "auc", features_in_columns=FALSE, 
+                       parallel = TRUE, n_cores=12, 
+                       k=5, best_scope = "pct", param_yaml_path = "./sample/param.yaml")

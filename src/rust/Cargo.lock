@@ -588,8 +588,8 @@ dependencies = [
 
 [[package]]
 name = "gpredomics"
-version = "0.7.5"
-source = "git+https://github.com/predomics/gpredomics.git?tag=v0.7.5#79cc49a390abbe5082ed26ed851f33c33b4e0578"
+version = "0.7.6"
+source = "git+https://github.com/predomics/gpredomics.git?tag=v0.7.6#d899d2ade1743336cc69af0e72e28d869805fa9e"
 dependencies = [
  "argmin",
  "bincode",
@@ -1238,7 +1238,7 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
 name = "rgpredomicsR"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "extendr-api",

@@ -1,0 +1,243 @@
+---
+title: "GpredomicsR"
+author: "Edi Prifti & Louison Lesage, Institute of Research for Development (IRD) / GMT Science, France"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{GpredomicsR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gpredomicsR)
+library(readr)
+library(tibble)
+library(dplyr)
+```
+
+## Loading Data
+
+First, you need to load your data. Gpredomics specifically requires two objects: an X data frame and a factor y, with sample names as names to ensure proper alignment: 
+
+```{r}
+df_X_train <- read_table("../sample/Xtrain.tsv")
+df_X_train <- df_X_train %>% column_to_rownames("msp_name")
+
+# y an ordered factor with names=samples
+df_y_train <- read_table("../sample/Ytrain.tsv", col_names = FALSE, skip=1)
+y_train <- factor(ifelse(df_y_train[,2]==0, "healthy", "cirrhosis"), levels=c("healthy", "cirrhosis"), ordered = T)
+names(y_train) <- df_y_train[,1][[1]]
+```
+
+It requires the use of a specific data format. This format is directly compatible with the Gpredomics Rust binary and needs to contain both X and y for training.  
+
+```{r}
+gpred_train <- as.gpredomics.data(
+  X = df_X_train, 
+  y = y_train, 
+  features.in.columns = FALSE
+)
+```
+
+We can do the same with test data:
+
+```{r}
+df_X_test <- read_table("../sample/Xtest.tsv")
+df_X_test <- df_X_test %>% column_to_rownames("msp_name")
+df_y_test <- read_table("../sample/Ytest.tsv", col_names = FALSE, skip=1)
+y_test <- factor(ifelse(df_y_test[,2]==0, "healthy", "cirrhosis"), levels=c("healthy", "cirrhosis"), ordered = T)
+names(y_test) <- df_y_test[,1][[1]]
+
+gpred_test <- as.gpredomics.data(
+  X = df_X_test, 
+  y = y_test, 
+  features.in.columns = FALSE
+)
+```
+
+Note that even though we specify y here, it can be omitted for real prediction use cases. In such cases, the data object will set all sample classes as unknown.
+
+## Training (non-CV)
+
+Gpredomics requires two additional objects for training: a RunningFlag, which allows tracking the state of the training, and the experiment parameters, currently loaded from a parameter file:
+
+```{r}
+# Loading param and creating the Running flag
+param <- Param$load("../sample/param.yaml")
+running <- RunningFlag$new()
+```
+
+If desired, you can view and edit parameters directly from R:
+
+```{r}
+# Get a specific parameter
+param[["language"]]
+
+# Change a parameter
+param[["language"]] <- "bin,ter,ratio"
+```
+
+Once obtained, you can launch your experiment:
+
+```{r}
+# Launch the experiment
+exp <- fit_on(gpred_train, param, running)
+```
+
+## Exploring Results
+
+The experiment object contains a lot of information. A summary can be accessed simply by printing the experiment:
+
+```{r}
+print(exp)
+```
+The best population of the experiment (i.e., for non-CV, the last one) can be obtained using:
+
+```{r}
+last_pop <- exp$get_best_population()
+```
+
+But wait, as good data scientists, let's first plot the learning curve:
+
+```{r}
+plot(exp)
+```
+
+Here, we can see convergence at approximately generation 65. Let's use generation 70 for the next steps:
+
+```{r}
+pop <- exp$get_generation(75)
+```
+
+### Processing Population
+
+Like every Gpredomics object, the Population object can be summarized using a simple print: 
+
+```{r}
+pop
+```
+This print directly summarizes the mean training metrics in the population and the distribution of features, birth generation, languages, and types. Let's plot the distribution of a metric in the population:
+
+```{r}
+plot(pop[["fit"]])
+```
+
+As you may see, the population is already sorted by its fit. We can then access the best model of this population using simply indexation:
+
+```{r}
+best_ind <- pop[1]
+```
+
+### Processing Individuals
+
+Alright, we finally have an individual model! Let's print its performance and equation:
+
+```{r}
+best_ind
+```
+Here, we can see that our model is a Ratio model using prevalence data. It was first born in generation 66 and is composed of 88 features. Blue ones are associated with the positive class, purple ones with the negative class. This model can be directly used to compute its performance metrics on new data:
+
+```{r}
+best_ind$compute_metrics(gpred_train)
+```
+
+As you can see, we (fortunately!) found the described metrics and a few more. But, we are more interested in the test set:
+
+```{r}
+best_ind$compute_metrics(gpred_test)
+```
+However, honestly, we prefer to directly consult the predicted scores and classes: 
+
+```{r}
+best_ind$predict(gpred_test)
+```
+
+To understand exactly why a sample is classified the way it is, you can plot a waterfall plot:
+
+```{r}
+plotIndividualWaterfall(best_ind, gpred_train, sample="LD-27")
+```
+
+For exploratory purposes, it is possible to plot the recent genealogy of our individual:
+
+```{r}
+plot_genealogy(best_ind, exp)
+```
+
+Each individual is represented there by its personal hash.
+
+### ThresholdCI
+
+```{r}
+param[["threshold_ci_n_bootstrap"]] <- 1000
+expReject <- fit_on(gpred_train, param, running)
+```
+The Gpredomics threshold confidence interval penalizes the rejection rate by default. Let's study both fit evolution and rejection rate across generations: 
+
+```{r}
+plot(expReject, metric=c("rejection_rate", "fit"))
+```
+
+The penalty has reduced the threshold uncertainty during the evolution!
+
+Let's get the best Ternary model from the population:
+
+```{r}
+best_pop <- expReject$get_best_population()
+best_pop <- best_pop[best_pop[["language"]]=="Ternary"]
+```
+
+```{r}
+best_ind_reject <- best_pop[1]
+```
+
+Our best model is a rejection model.
+
+```{r}
+best_ind_reject
+```
+
+Let's plot its prediction for a healthy sample from our test set:
+
+```{r}
+plotIndividualWaterfall(best_ind_reject, gpred_test, sample="LV16")
+```
+
+## Training with Cross-Validation
+
+```{r}
+param[["threshold_ci_n_bootstrap"]] <- 0
+param[["cv"]] <- TRUE
+exp_cv <- fit_on(gpred_train, param, running)
+```
+Experiment generated using cross-validation contains more information than classic one:
+
+```{r}
+print(exp_cv)
+print(length(exp_cv))
+```
+Here, we can see that all folds have completed 100 epochs. Let's print the global learning curve:
+
+```{r}
+plot(exp_cv, show_folds=FALSE)
+```
+You can access the fold-merged best population (i.e., FBM of each fold merged):
+```{r}
+best_cv_pop <- exp_cv$get_best_population()
+best_cv_ind <- best_cv_pop[1]
+```
+
+### Best Individual vs Jury
+
+```{r}
+jury <- Jury$from_population(best_cv_pop, 0.5, 5)
+```
+
+```{r}
+print(best_cv_ind$compute_metrics(gpred_test)$auc)
+print(best_cv_ind$compute_metrics(gpred_test)$accuracy)
+print(jury$compute_metrics(gpred_test)$auc)
+print(jury$compute_metrics(gpred_test)$accuracy)
+```

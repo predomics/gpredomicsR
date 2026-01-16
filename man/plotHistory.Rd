@@ -7,8 +7,8 @@
 plotHistory(
   experiment,
   data,
-  scope = "best",
-  metrics = c("AUC", "Fit"),
+  scope = "fbm",
+  metrics = c("fit"),
   show_folds = FALSE,
   show_events = FALSE,
   main = "Training history",
@@ -27,7 +27,7 @@ individuals are aggregated at each generation. Default is "best".}
 data.frame returned by \code{experiment$get_history()}. Typical choices include
 c("AUC", "Fit", "Sensitivity", "Specificity", "F1", "MCC", "k").}
 
-\item{show_folds}{Logical; if TRUE and if a "Fold" column is present, individual
+\item{show_folds}{Logical; if TRUE and if the experiment used cross-validation, individual
 fold curves are drawn in grey in the background. Default is FALSE.}
 
 \item{show_events}{Logical; if TRUE and if the algorithm is GA, vertical lines

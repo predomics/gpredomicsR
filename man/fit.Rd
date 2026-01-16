@@ -7,7 +7,7 @@
 fit(param, running_flag)
 }
 \arguments{
-\item{param}{Param object containing experiment configuration (data paths, algorithm, CV settings)}
+\item{param}{Param object containing experiment configuration}
 
 \item{running_flag}{RunningFlag object to control and monitor execution}
 }
@@ -15,11 +15,31 @@ fit(param, running_flag)
 Experiment object containing populations, final results, and optional Jury
 }
 \description{
-Run the Gpredomics genetic algorithm to produce an Experiment from parameters
+Run the Gpredomics genetic algorithm to produce an Experiment from parameters.
 }
 \details{
-This is the main entry point for running Gpredomics algorithms (GA, BEAM, MCMC).
-The function loads data specified in the param object, runs the algorithm, and
-returns a complete Experiment object with results. If param$voting$vote is TRUE,
-a Jury ensemble is automatically computed.
+Runs Gpredomics algorithm from parameter specification.
 }
+\section{Arguments}{
+\itemize{
+\item \code{param} - Param object containing complete algorithm configuration
+\item \code{running_flag} - RunningFlag for execution control and monitoring
+}
+}
+
+\section{Returns}{
+An Experiment object containing all results and metadata
+
+This is the main entry point for running Gpredomics algorithms (GA, BEAM, MCMC).
+The function:
+\\enumerate{
+\\item Loads data from paths specified in param object (param$data$X, param$data$y)
+\\item Applies feature selection if configured
+\\item Runs the specified algorithm (GA/BEAM/MCMC)
+\\item Performs cross-validation if param$cv = TRUE
+\\item Computes Jury ensemble if param$voting$vote = TRUE
+}
+
+Thread count is resolved from R option 'gpredomics.threads.number' or param$general$thread_number.
+}
+

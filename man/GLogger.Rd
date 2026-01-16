@@ -12,21 +12,38 @@ An object of class \code{environment} of length 4.
 GLogger
 }
 \description{
-An object to handle Logger
+Configurable logging system for Gpredomics.
 }
 \details{
-GLogger provides a configurable logging interface for the gpredomics package.
-It supports different logging levels (info, debug, error, etc.) and can output
-to screen or files with customizable formatting.
+GLogger provides a flexible logging interface with:
+\\itemize{
+\\item \\strong{Log levels}: info, debug, warn, error, trace
+\\item \\strong{Output modes}: Console (stderr) or file-based logging
+\\item \\strong{Custom formatting}: Timestamp, level, and message
+\\item \\strong{Dynamic control}: Change log level at runtime
+}
+
+Loggers can be created from Param objects or standalone with specific levels.
+File-based logging supports automatic timestamping and log rotation.
 }
 \section{Methods}{
 
-\describe{
-\item{\code{new()}}{Create a new screen logger with default 'info' level. Returns GLogger object.}
-\item{\code{level(level)}}{Create a new screen logger with specified logging level. Parameter: level (logging level string, e.g., "info", "debug", "error"). Returns GLogger object.}
-\item{\code{get(param)}}{Create a new logger from a Param object containing logging configuration. Parameter: param (Param object containing logging configuration). Returns GLogger object.}
-\item{\code{set_level(level)}}{Change logging level. Parameter: level (new logging level string, e.g., "info", "debug", "error").}
+\\describe{
+\\item{\\code{new()}}{Create screen logger with default 'info' level.}
+\\item{\\code{level(level)}}{Create screen logger with specified level.}
+\\item{\\code{get(param)}}{Create logger from Param configuration.}
+\\item{\\code{set_level(level)}}{Change current logging level.}
 }
 }
 
+\examples{
+\\dontrun{
+# Create logger with debug level
+logger <- GLogger$level("debug")
+
+# Change level at runtime
+logger$set_level("info")
+}
+
+}
 \keyword{datasets}

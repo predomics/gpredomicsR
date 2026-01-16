@@ -128,7 +128,7 @@ printPopulation <- function(obj, method = "short", score = "fit", indent = "") {
 #' Prints detailed information about a collection of model populations.
 #'
 #' @param obj A model collection object (list of populations).
-#' @param indent Indentation string for hierarchical formatting (default: "\t--- ").
+#' @param indent Indentation string for hierarchical formatting (default: "\\t--- ").
 #' @param method Print format: "short" (summary) or "long" (detailed, per population).
 #' @return None. Prints the information directly.
 #' @export
@@ -839,10 +839,6 @@ plotAbundanceByClass <- function(features, X, y, topdown = TRUE,
   return(p)
 }
 
-
-
-
-
 #' Plot Feature Prevalence and Enrichment
 #'
 #' This function visualizes the prevalence of features across different groups
@@ -1201,8 +1197,9 @@ plot_population_heatmap <- function(exp,
 }
 
 #' Plot a precomputed genealogy (Graph / Tree view)
-#'
-#' @param td A list with $nodes and $edges as returned by get_genealogy().
+#' @param ind Individual to plot genealogy for.
+#' @param experiment Experiment object.
+#' @param max_depth Maximum depth of the genealogy to display.
 #' @param layout Graph layout: "tree", "kk", "fr", "sugiyama".
 #' @param node_size_base Base size of the nodes.
 #' @param text_repel Use ggrepel for labels.
@@ -1210,13 +1207,14 @@ plot_population_heatmap <- function(exp,
 #' @return A ggplot/ggraph object.
 #' @export
 plot_genealogy <- function(
-
-  td, layout = "sugiyama", node_size_base = 2, text_repel = TRUE,
+  ind, exp, max_depth=3, layout = "sugiyama", node_size_base = 2, text_repel = TRUE,
   node_vars = list(color = "auc", size = "k", label = "label")
 ) {
   requireNamespace("ggraph")
   requireNamespace("igraph")
   requireNamespace("ggplot2")
+
+  td <- ind$get_genealogy(exp, max_depth = max_depth)
 
   if (is.null(td) || is.null(td$nodes) || is.null(td$edges)) {
     stop("`td` must be a list with $nodes and $edges.")
@@ -1408,7 +1406,7 @@ plotClassHeatmap <- function(class_matrix, y = NULL, main = "Predicted Classes b
   return(p)
 }
 
-#' Plot Importance Heatmap: Feature Importance Across Folds or Individuals
+#' Plot Importance Heatmap: Feature Importance Across folds or Individuals
 #'
 #' @param importance_matrix Matrix or data.frame (features x folds/individuals).
 #'   From `experiment$compute_cv_importance_matrix()` or `population$compute_importance_matrix()`.
@@ -1532,7 +1530,7 @@ plotImportanceHeatmap <- function(importance_matrix, main = "Feature Importance"
 #' @param metrics Character vector of metric names to plot. Must be columns of the
 #'   data.frame returned by `experiment$get_history()`. Typical choices include
 #'   c("AUC", "Fit", "Sensitivity", "Specificity", "F1", "MCC", "k").
-#' @param show_folds Logical; if TRUE and if a "Fold" column is present, individual
+#' @param show_folds Logical; if TRUE and if the experiment used cross-validation, individual
 #'   fold curves are drawn in grey in the background. Default is FALSE.
 #' @param show_events Logical; if TRUE and if the algorithm is GA, vertical lines
 #'   are drawn at GA event epochs (random sampling and forced diversity).
@@ -1546,8 +1544,8 @@ plotImportanceHeatmap <- function(importance_matrix, main = "Feature Importance"
 #' @export
 plotHistory <- function(experiment,
                         data,
-                        scope = "best",
-                        metrics = c("AUC", "Fit"),
+                        scope = "fbm",
+                        metrics = c("fit"),
                         show_folds = FALSE,
                         show_events = FALSE,
                         main = "Training history",
@@ -1568,8 +1566,8 @@ plotHistory <- function(experiment,
     stop("experiment$get_history() must return a data.frame.")
   }
 
-  if (!"Generation" %in% colnames(history)) {
-    stop("History data.frame must contain a 'Generation' column.")
+  if (!"generation" %in% colnames(history)) {
+    stop("History data.frame must contain a 'generation' column.")
   }
 
   # Check metrics presence
@@ -1581,33 +1579,33 @@ plotHistory <- function(experiment,
     )
   }
 
-  has_folds <- "Fold" %in% colnames(history)
+  has_folds <- "fold" %in% colnames(history)
 
   # --- Build long-format data depending on CV presence and show_folds ---
   if (has_folds && show_folds) {
     df_long <- history %>%
-      select(Fold, Generation, all_of(metrics)) %>%
+      select(fold, generation, all_of(metrics)) %>%
       pivot_longer(cols = all_of(metrics),
                    names_to = "Metric",
                    values_to = "Value")
 
     p <- ggplot(df_long,
-                aes(x = Generation,
+                aes(x = generation,
                     y = Value,
-                    group = interaction(Fold, Metric))) +
+                    group = interaction(fold, Metric))) +
       geom_line(color = "grey70", alpha = 0.6) +
       facet_wrap(~Metric, scales = "free_y") +
       labs(title = main, x = "Generation", y = "Value")
 
   } else if (has_folds && !show_folds) {
     df_long <- history %>%
-      select(Fold, Generation, all_of(metrics)) %>%
+      select(fold, generation, all_of(metrics)) %>%
       pivot_longer(cols = all_of(metrics),
                    names_to = "Metric",
                    values_to = "Value")
 
     df_summary <- df_long %>%
-      group_by(Generation, Metric) %>%
+      group_by(generation, Metric) %>%
       summarize(
         Mean = mean(Value, na.rm = TRUE),
         SD   = sd(Value,   na.rm = TRUE),
@@ -1615,7 +1613,7 @@ plotHistory <- function(experiment,
       )
 
     p <- ggplot(df_summary,
-                aes(x = Generation,
+                aes(x = generation,
                     y = Mean,
                     color = Metric,
                     fill = Metric)) +
@@ -1630,13 +1628,13 @@ plotHistory <- function(experiment,
 
   } else {
     df_long <- history %>%
-      select(Generation, all_of(metrics)) %>%
+      select(generation, all_of(metrics)) %>%
       pivot_longer(cols = all_of(metrics),
                    names_to = "Metric",
                    values_to = "Value")
 
     p <- ggplot(df_long,
-                aes(x = Generation,
+                aes(x = generation,
                     y = Value,
                     color = Metric)) +
       geom_line(linewidth = 1) +
@@ -1650,7 +1648,7 @@ plotHistory <- function(experiment,
     # Retrieve parameters from experiment
     param <- experiment$get_param()$get()
     algo  <- param$general$algo
-    max_gen <- max(history$Generation, na.rm = TRUE)
+    max_gen <- max(history$generation, na.rm = TRUE)
 
     events <- data.frame(
       Generation = numeric(0),
@@ -1674,7 +1672,7 @@ plotHistory <- function(experiment,
                             color = "orange",
                             alpha = 0.9)
             events <- rbind(events,
-                      data.frame(Generation = rs_epochs,
+                      data.frame(generation = rs_epochs,
                                  Event = "GA random sampling"))
       }
 
@@ -1688,7 +1686,7 @@ plotHistory <- function(experiment,
                             color = "red",
                             alpha = 0.9)
           events <- rbind(events,
-                      data.frame(Generation = div_epochs,
+                      data.frame(generation = div_epochs,
                                  Event = "GA forced diversity"))
       }
     }
@@ -1706,14 +1704,14 @@ plotHistory <- function(experiment,
                             color = "blue",
                             alpha = 0.9)
         events <- rbind(events,
-                    data.frame(Generation = cv_epochs,
+                    data.frame(generation = cv_epochs,
                                Event = "CV resampling"))
     }
 
     if (nrow(events) > 0) {
       p <- p +
         geom_vline(data = events,
-                  aes(xintercept = Generation, color = Event, linetype = Event),
+                  aes(xintercept = generation, color = Event, linetype = Event),
                   alpha = 0.9) +
         scale_color_manual(values = c(
           "GA random sampling"  = "orange",
@@ -1768,11 +1766,30 @@ plotIndividualWaterfall <- function(individual,
   library(dplyr)
 
   # R → Rust index (0-based)
-  if (sample < 1L) {
+  if (is.numeric(sample) && sample < 1L) {
     stop("sample index must be >= 1 (R is 1-based).")
   }
 
+  if (is.character(sample)) {
+    sample_names <- data$get()$samples
+    sample_idx <- match(sample, sample_names)
+    if (is.na(sample_idx)) {
+      stop("Sample name '", sample, "' not found in data.")
+    }
+    sample <- sample_idx
+  }
+
+  # Get feature contributions
   df <- individual$explain_sample(data, sample_index = sample)
+  
+  # Filter out features with zero contribution (absent species)
+  df <- df %>% filter(Contribution != 0)
+  
+  # Get metrics including threshold
+  infos <- individual$get()
+  threshold <- infos$threshold
+  threshold_ci <- if (!is.null(infos$threshold_ci)) infos$threshold_ci else NULL
+  is_ratio <- infos$language == "Ratio"
 
   if (!is.null(top_n) && nrow(df) > top_n) {
     df <- df %>%
@@ -1781,29 +1798,44 @@ plotIndividualWaterfall <- function(individual,
       slice(seq_len(top_n))
   }
 
+  # Order features: POSITIVE contributions first (ascending), then NEGATIVE (descending)
   df <- df %>%
-    mutate(abs_contrib = abs(Contribution)) %>%
-    arrange(desc(abs_contrib)) %>%
-    mutate(
-      Feature = factor(Feature, levels = rev(unique(Feature))),
-      Direction = ifelse(Contribution >= 0, "Positive", "Negative")
-    )
+    mutate(Direction = ifelse(Contribution >= 0, data$get()$classes[2], data$get()$classes[1])) %>%
+    arrange(Contribution)  # Positive first (low to high), then negative (low to high)
+  
+  # Create factor with this ordering for plotting (reversed for coord_flip)
+  df <- df %>%
+    mutate(Feature = factor(Feature, levels = rev(unique(Feature))))
 
-  df <- df %>%
-    mutate(
-      CumStart = baseline + c(0, head(cumsum(Contribution), -1)),
-      CumEnd   = baseline + cumsum(Contribution)
-    )
+  # Compute cumulative scores
+  # For RATIO models, contributions don't sum linearly, so we can't build a traditional waterfall
+  # Instead, we show all contributions as bars proportional to their relative impact
+  if (is_ratio) {
+    # For ratio models, CumScore is constant (the final ratio score)
+    final_score <- df$CumScore[1]
+    df <- df %>%
+      mutate(
+        CumStart = baseline,
+        CumEnd = baseline + Contribution * (final_score - baseline) / sum(abs(Contribution))
+      )
+  } else {
+    # Standard linear cumulative sum for additive models
+    df <- df %>%
+      mutate(
+        CumStart = baseline + c(0, head(cumsum(Contribution), -1)),
+        CumEnd   = baseline + cumsum(Contribution)
+      )
+    final_score <- df$CumEnd[nrow(df)]
+  }
+  
+  # Get prediction info
+  pred <- individual$predict(data)
+  predicted_class <- data$get()$classes[pred$class[sample]+1]
 
   if (is.null(main)) {
-    main = paste("Waterfall plot for sample", 
+    main = paste0("Waterfall plot for sample ", 
       data$get()$samples[sample], 
-      "(prediction:",
-      ifelse(
-        data$get()$y[sample]==individual$predict(data)$class[sample], 
-        "correct)", 
-        "incorrect)")
-      )
+      " (predicted ", predicted_class, ")")
   }
 
   p <- ggplot(df, aes(x = Feature)) +
@@ -1815,9 +1847,29 @@ plotIndividualWaterfall <- function(individual,
       fill = Direction
     ), color = "grey40") +
     geom_point(aes(y = CumEnd), size = 1.5, color = "black") +
-    geom_hline(yintercept = baseline, linetype = "dotted", color = "grey50") +
+    geom_hline(yintercept = baseline, linetype = "dotted", color = "grey50", linewidth = 0.5) 
+    
+  # Add threshold CI lines if available
+  if (!is.null(threshold_ci) && length(threshold_ci) == 2 && !is_ratio) {
+    x_min <- 0
+    x_max <- length(levels(df$Feature))
+    p <- p +
+      geom_rect(aes(xmin = x_min, xmax = x_max, ymin = threshold_ci$lower, ymax = threshold_ci$upper),
+                fill = "lightgrey", alpha = 0.01) +
+      geom_hline(yintercept = threshold_ci$lower, linetype = "dashed", color = "royalblue", linewidth = 0.7, alpha = 0.7) +
+      geom_hline(yintercept = threshold_ci$upper, linetype = "dashed", color = "royalblue", linewidth = 0.7, alpha = 0.7)
+  } else if (!is_ratio) {
+    p <- p + geom_hline(yintercept = threshold, linetype = "solid", color = "royalblue", linewidth = 1)
+  }
+
+  class_names <- data$get()$classes[1:2]
+  dir_color <- c("#B294BB", "#82B7B4")  
+  names(dir_color) <- class_names
+
+  # Add final prediction line
+  p <- p +
     coord_flip() +
-    scale_fill_manual(values = c("Positive" = "#2E8B57", "Negative" = "#E64B35")) +
+    scale_fill_manual(values = dir_color) +
     labs(
       title = main,
       x = "",
