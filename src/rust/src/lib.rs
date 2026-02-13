@@ -275,8 +275,8 @@ impl Param {
             ("max_epochs", Robj::from(self.intern.ga.max_epochs)),
             ("min_epochs", Robj::from(self.intern.ga.min_epochs)),
             ("max_age_best_model", Robj::from(self.intern.ga.max_age_best_model)),
-            ("kmin", Robj::from(self.intern.ga.kmin)),
-            ("kmax", Robj::from(self.intern.ga.kmax)),
+            ("kmin", Robj::from(self.intern.ga.k_min)),
+            ("kmax", Robj::from(self.intern.ga.k_max)),
             ("select_elite_pct", Robj::from(self.intern.ga.select_elite_pct)),
             ("select_niche_pct", Robj::from(self.intern.ga.select_niche_pct)),
             ("select_random_pct", Robj::from(self.intern.ga.select_random_pct)),
@@ -292,8 +292,8 @@ impl Param {
         // Convert GA fields
         let beam = List::from_pairs(vec![
             ("method", Robj::from(format!("{:?}", self.intern.beam.method))),
-            ("kmin", Robj::from(self.intern.beam.kmin)),
-            ("kmax", Robj::from(self.intern.beam.kmax)),
+            ("kmin", Robj::from(self.intern.beam.k_start)),
+            ("kmax", Robj::from(self.intern.beam.k_stop)),
             ("best_models_criterion", Robj::from(self.intern.beam.best_models_criterion)),            
             ("max_nb_of_models", Robj::from(self.intern.beam.max_nb_of_models)),
         ]);
@@ -311,7 +311,7 @@ impl Param {
         // Convert Importance fields
         let importance = List::from_pairs(vec![
             ("compute_importance", Robj::from(self.intern.importance.compute_importance)),
-            ("n_permutations_oob",Robj::from(self.intern.importance.n_permutations_oob)),
+            ("n_permutations_mda",Robj::from(self.intern.importance.n_permutations_mda)),
             ("scaled_importance", Robj::from(self.intern.importance.scaled_importance)),
             ("importance_aggregation", Robj::from(format!("{:?}",self.intern.importance.importance_aggregation)))
         ]);
@@ -389,8 +389,8 @@ impl Param {
             "max_epochs" => self.intern.ga.max_epochs = value as usize,
             "min_epochs" => self.intern.ga.min_epochs = value as usize,
             "max_age_best_model" => self.intern.ga.max_age_best_model = value as usize,
-            "k_min" => self.intern.ga.kmin = value as usize,
-            "k_max" => self.intern.ga.kmax = value as usize,
+            "k_min" => self.intern.ga.k_min = value as usize,
+            "k_max" => self.intern.ga.k_max = value as usize,
             "select_elite_pct" => self.intern.ga.select_elite_pct = value,
             "select_niche_pct" => self.intern.ga.select_niche_pct = value,
             "select_random_pct" => self.intern.ga.select_random_pct = value,
@@ -428,7 +428,7 @@ impl Param {
             "threshold_windows_pct" => self.intern.voting.threshold_windows_pct = value,
             
             // Importance parameters
-            "n_permutations_oob" => self.intern.importance.n_permutations_oob = value as usize,
+            "n_permutations_mda" => self.intern.importance.n_permutations_mda = value as usize,
             
             // GPU parameters
             "max_total_memory_mb" => self.intern.gpu.max_total_memory_mb = value as u64,
@@ -1900,7 +1900,7 @@ impl Individual {
             feature_seeds.insert(f, seeds);
         }
 
-        let ic: ImportanceCollection = self.intern.compute_oob_feature_importance(&data.intern, permutations, &features_to_process, &feature_seeds); 
+        let ic: ImportanceCollection = self.intern.compute_mda_feature_importance(&data.intern, permutations, &features_to_process, &feature_seeds); 
 
         let mut feature = Vec::with_capacity(ic.importances.len());
         let mut importance = Vec::with_capacity(ic.importances.len());
@@ -2598,7 +2598,7 @@ impl Experiment {
     /// @name Experiment$compute_cv_importance
     /// @description
     /// Compute cross-validated feature importance (MDA-like) aggregated across CV folds.  
-    /// This uses the native CV::compute_cv_oob_feature_importance logic on the original
+    /// This uses the native CV::compute_cv_mda_feature_importance logic on the original
     /// training data and CV folds stored in the Experiment.
     ///
     /// @param n_perm Number of permutations (default: 1000)
@@ -2643,7 +2643,7 @@ impl Experiment {
 
         // 3) Native CV importance (agrégé across folds)
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut ic: ImportanceCollection = cv.compute_cv_oob_feature_importance(
+        let mut ic: ImportanceCollection = cv.compute_cv_mda_feature_importance(
             &self.param_arc,
             permutations,
             &mut rng,
@@ -2845,7 +2845,7 @@ impl Experiment {
 
                     let mut rng = ChaCha8Rng::seed_from_u64(base_seed);
                     let mut ic: ImportanceCollection = last_pop
-                        .compute_pop_oob_feature_importance(
+                        .compute_pop_mda_feature_importance(
                             &fold_data,
                             permutations,
                             &mut rng,
@@ -4094,7 +4094,7 @@ impl Population {
         let pool = ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
 
         let mut ic: ImportanceCollection = pool.install(|| {
-            self.intern.compute_pop_oob_feature_importance(
+            self.intern.compute_pop_mda_feature_importance(
                 &data.intern,
                 permutations,
                 &mut rng,
@@ -4212,7 +4212,7 @@ impl Population {
 
                 let mut col = vec![0.0_f64; n_feat];
 
-                let ic = ind.compute_oob_feature_importance(
+                let ic = ind.compute_mda_feature_importance(
                     &data.intern,
                     permutations,
                     &feats_for_ind,

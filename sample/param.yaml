@@ -56,7 +56,7 @@ cv:
   
 importance:
   compute_importance: false                   # Should importance be computed?
-  n_permutations_oob: 100                     # Number of permutations per feature for OOB importance.
+  n_permutations_mda: 100                     # Number of permutations per feature for MDA importance.
   scaled_importance: true                     # Scale importance by feature prevalence inside folds.
   importance_aggregation: mean                # Aggregation method for importances: "mean" or "median".
 
@@ -93,7 +93,7 @@ beam:
   method: LimitedExhaustive                   # LimitedExhaustive: generate all combinations (k out of features_to_keep). ParallelForward: extend each extendable model by one feature chosen from features_to_keep.
   kmin: 2                                     # Number of variables used in the initial population.
   kmax: 100                                   # Maximum number of variables to consider in a single model (variable count limit for beam algorithm).
-  best_models_ci_alpha: 1e-5                  # Alpha for the family of best models confidence interval based on the best fit. Smaller alpha -> larger best_model range.
+  best_models_criterion: 10                   # If <=1: alpha for FBM confidence interval. If >1: keep that many best models per k. Smaller alpha -> larger best_model range.
   max_nb_of_models: 20000                     # Limits the number of features_to_keep at each epoch according to the number of models made possible by them (truncated according to significance).
 
 mcmc:
